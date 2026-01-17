@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Session outputs (users generate their own)
+debate_output/
+
+# Test files and logs
+*.log
+test_*.py
+*_test.py
+test_*/
+fix_test_logs/
+*.test.ts
+
+# Debug and temporary files
+*.backup.*
+diagnose_*.py
+mock_*.py
+quick_*.sh
+quick_*.py
+run_*.sh
+iterative_*.py
+iterative_*.log
+comprehensive_*.sh
+simple_*.sh
+generate_*.py
+demonstrate_*.py
+fix_and_test.sh
+
+# Generated reports
+*_REPORT.md
+*_SUMMARY.md
+*_RESULTS*.md
+CHECKLIST.md
+FIXES_APPLIED.md
+VERIFICATION*.md
+README_FIXES.md
+
+# Example generated code (not part of plugin)
+*.ts
+*.js
+!commands/*.js
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
