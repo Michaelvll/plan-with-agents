@@ -57,7 +57,7 @@ Ask the user what task or feature they want to plan. Once they provide the task,
 1. **Run the planning session**:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/debate" --working-dir "$(pwd)" {{#if max_rounds}}--max-rounds {{max_rounds}} {{/if}}{{#if model}}--model {{model}} {{/if}}"TASK_DESCRIPTION"
+"${CLAUDE_PLUGIN_ROOT}/plan" --working-dir "$(pwd)" {{#if max_rounds}}--max-rounds {{max_rounds}} {{/if}}{{#if model}}--model {{model}} {{/if}}"TASK_DESCRIPTION"
 ```
 
 Replace `TASK_DESCRIPTION` with the actual task.
@@ -65,8 +65,8 @@ Replace `TASK_DESCRIPTION` with the actual task.
 2. **Wait for consensus**: Planning runs through multiple rounds until both agents agree.
 
 3. **Review the output**:
-   - Final design: `debate_output/session_*/final_design.md`
-   - Full history: `debate_output/session_*/debate_history.md`
+   - Final design: `plan_output/session_*/final_design.md`
+   - Full history: `plan_output/session_*/planning_history.md`
 
 4. **After completion**: Present the agreed-upon design to the user. Ask if they want you to implement it.
 
@@ -87,16 +87,16 @@ Replace `TASK_DESCRIPTION` with the actual task.
 
 ```bash
 # Standard planning (most cases)
-"${CLAUDE_PLUGIN_ROOT}/debate" --working-dir "$(pwd)" "Design API caching layer"
+"${CLAUDE_PLUGIN_ROOT}/plan" --working-dir "$(pwd)" "Design API caching layer"
 
 # Quick consensus for simpler tasks
-"${CLAUDE_PLUGIN_ROOT}/debate" --working-dir "$(pwd)" --max-rounds 5 "Add rate limiting"
+"${CLAUDE_PLUGIN_ROOT}/plan" --working-dir "$(pwd)" --max-rounds 5 "Add rate limiting"
 
 # Deep exploration for complex/critical tasks
-"${CLAUDE_PLUGIN_ROOT}/debate" --working-dir "$(pwd)" --model opus --max-rounds 12 "Design payment processing"
+"${CLAUDE_PLUGIN_ROOT}/plan" --working-dir "$(pwd)" --model opus --max-rounds 12 "Design payment processing"
 
 # Resume an interrupted session
-"${CLAUDE_PLUGIN_ROOT}/debate" --resume latest
+"${CLAUDE_PLUGIN_ROOT}/plan" --resume latest
 ```
 
 ## Notes

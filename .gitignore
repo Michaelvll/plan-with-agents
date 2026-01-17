@@ -4,7 +4,7 @@ __pycache__/
 *.pyo
 
 # Session outputs (users generate their own)
-debate_output/
+plan_output/
 
 # Test files and logs
 *.log

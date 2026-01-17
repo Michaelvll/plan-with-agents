@@ -164,7 +164,7 @@ Or simply run without a task to be prompted:
 
 ### Config File
 
-Create `.debate.json` in your project root or home directory:
+Create `.plan.json` in your project root or home directory:
 
 ```json
 {
@@ -178,9 +178,9 @@ Create `.debate.json` in your project root or home directory:
 ### Environment Variables
 
 ```bash
-export DEBATE_MAX_ROUNDS=8
-export DEBATE_MODEL=sonnet
-export DEBATE_TIMEOUT=300
+export PLAN_MAX_ROUNDS=8
+export PLAN_MODEL=sonnet
+export PLAN_TIMEOUT=300
 export NO_COLOR=1  # Disable colors
 ```
 
@@ -188,18 +188,18 @@ export NO_COLOR=1  # Disable colors
 
 Configuration is resolved in this order (later overrides earlier):
 1. Defaults
-2. Config file (`.debate.json`)
+2. Config file (`.plan.json`)
 3. Environment variables
 4. CLI flags
 
 ## Output
 
-Results are saved to `debate_output/session_*/`:
+Results are saved to `plan_output/session_*/`:
 
 ```
-debate_output/session_20260116_123456/
+plan_output/session_20260116_123456/
 ├── final_design.md       # The agreed-upon design (read this first)
-├── debate_history.md     # Full conversation transcript
+├── planning_history.md     # Full conversation transcript
 ├── session.json          # Metadata
 └── session_state.json    # State for resumption
 ```
@@ -222,7 +222,7 @@ Each example includes:
 ### Run Self-Test
 
 ```bash
-./debate --self-test
+./plan --self-test
 ```
 
 This checks:

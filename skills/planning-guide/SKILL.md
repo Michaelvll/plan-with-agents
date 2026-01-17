@@ -74,9 +74,9 @@ trigger_context:
 ### Output Files
 
 ```
-debate_output/session_*/
+plan_output/session_*/
 ├── final_design.md       # Consensus design (read this first)
-├── debate_history.md     # Full agent conversation
+├── planning_history.md     # Full agent conversation
 ├── session.json          # Metadata
 └── session_state.json    # State for resumption
 ```
@@ -85,7 +85,7 @@ debate_output/session_*/
 
 **Process:**
 1. Read `final_design.md` - This is the agreed design
-2. Skim `debate_history.md` - Look for "Round N" headers
+2. Skim `planning_history.md` - Look for "Round N" headers
 3. Identify: What did agents disagree on? How was it resolved?
 
 **Example interpretation:**

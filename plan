@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Claude Code Debate System
+Plan With Agents - Multi-Agent Planning System
 
-Two Claude Code instances debate with each other, where each agent generates
-the prompt for the other agent. This creates an organic, self-directed debate
-that converges on optimal designs.
+Two AI agents (Architect and Reviewer) collaborate through iterative refinement
+to create high-quality implementation designs. Each agent generates prompts for
+the other, creating organic discussion that converges on optimal designs.
 
 Usage:
-    python debate.py "Design a REST API for a todo app"
-    python debate.py -f requirements.txt --max-rounds 10
-    python debate.py --implement "Design and build a CLI tool"
+    python plan "Design a REST API for a todo app"
+    python plan -f requirements.txt --max-rounds 10
+    python plan --implement "Design and build a CLI tool"
 """
 
 import argparse
@@ -151,7 +151,7 @@ def validate_config(
     max_rounds: int = 8,
     timeout: int = 300,
     working_dir: str = ".",
-    output_dir: str = "./debate_output"
+    output_dir: str = "./plan_output"
 ) -> Result[dict]:
     """Validate all configuration parameters"""
     warnings = []
@@ -265,7 +265,7 @@ def check_claude_cli() -> Result[str]:
 # ============================================================================
 
 @contextmanager
-def interrupt_handler(session: 'DebateSession'):
+def interrupt_handler(session: 'PlanningSession'):
     """Context manager for graceful interrupt handling with session save"""
 
     def handler(signum, frame):
@@ -276,7 +276,7 @@ def interrupt_handler(session: 'DebateSession'):
             try:
                 save_session_state(session)
                 print(f"{Colors.GREEN}✓ Session saved to {session.session_dir}{Colors.NC}")
-                print(f"Resume with: {Colors.CYAN}debate --resume {session.session_dir}{Colors.NC}")
+                print(f"Resume with: {Colors.CYAN}plan --resume {session.session_dir}{Colors.NC}")
             except Exception as e:
                 print(f"{Colors.RED}✗ Failed to save session: {e}{Colors.NC}",
                       file=sys.stderr)
@@ -307,7 +307,7 @@ def interrupt_handler(session: 'DebateSession'):
 # Self-Test Diagnostics
 # ============================================================================
 
-def check_output_writable(output_dir: str = './debate_output') -> Result[str]:
+def check_output_writable(output_dir: str = './plan_output') -> Result[str]:
     """Check if we can write to output directory"""
     try:
         test_dir = Path(output_dir)
@@ -361,7 +361,7 @@ def check_python_version() -> Result[str]:
     return Success(f"{version.major}.{version.minor}.{version.micro}")
 
 
-def run_self_test(output_dir: str = './debate_output') -> bool:
+def run_self_test(output_dir: str = './plan_output') -> bool:
     """Run comprehensive self-diagnostics"""
     print(f"{Colors.BOLD}Running self-diagnostics...{Colors.NC}\n")
 
@@ -420,16 +420,16 @@ class AgentResponse:
 
 
 @dataclass
-class DebateRound:
-    """A single round in the debate"""
+class PlanningRound:
+    """A single round in the planning session"""
     round_number: int
     agent_a_response: Optional[AgentResponse] = None
     agent_b_response: Optional[AgentResponse] = None
 
 
 @dataclass
-class DebateSession:
-    """Tracks the entire debate session"""
+class PlanningSession:
+    """Tracks the entire planning session"""
     initial_prompt: str
     rounds: list = field(default_factory=list)
     final_design: str = ""
@@ -450,7 +450,7 @@ class DebateConfig:
     timeout: int = 300
     verbose: bool = False
     no_color: bool = False
-    output_dir: str = './debate_output'
+    output_dir: str = './plan_output'
     working_dir: str = '.'
 
 
@@ -458,8 +458,8 @@ def load_config(working_dir: str = '.') -> DebateConfig:
     """Load configuration with 3-level precedence: defaults < file < env"""
     config = DebateConfig()
 
-    # Level 1: File config (.debate.json in working dir or home)
-    for config_path in [Path(working_dir) / '.debate.json', Path.home() / '.debate.json']:
+    # Level 1: File config (.plan.json in working dir or home)
+    for config_path in [Path(working_dir) / '.plan.json', Path.home() / '.plan.json']:
         if not config_path.exists():
             continue
 
@@ -493,10 +493,10 @@ def load_config(working_dir: str = '.') -> DebateConfig:
 
     # Level 2: Environment variables (override file config)
     env_map = {
-        'DEBATE_MAX_ROUNDS': ('max_rounds', int),
-        'DEBATE_MODEL': ('model', str),
-        'DEBATE_TIMEOUT': ('timeout', int),
-        'DEBATE_VERBOSE': ('verbose', lambda x: x.lower() in ('1', 'true', 'yes')),
+        'PLAN_MAX_ROUNDS': ('max_rounds', int),
+        'PLAN_MODEL': ('model', str),
+        'PLAN_TIMEOUT': ('timeout', int),
+        'PLAN_VERBOSE': ('verbose', lambda x: x.lower() in ('1', 'true', 'yes')),
     }
 
     for env_var, (attr, converter) in env_map.items():
@@ -738,7 +738,7 @@ def calculate_similarity(text_a: str, text_b: str) -> float:
     return matcher.ratio()
 
 
-def print_round_summary(session: DebateSession, round_num: int, max_rounds: int, duration: float,
+def print_round_summary(session: PlanningSession, round_num: int, max_rounds: int, duration: float,
                         convergence_score: float, agent_a_signal: str, agent_b_signal: str):
     """Print comprehensive summary after each round with ETA"""
     session.round_times.append(duration)
@@ -799,7 +799,7 @@ def print_agent_turn(agent_name: str, round_num: int, color: str):
 {Colors.BOLD}└────────────────────────────────────────────────────────────────────────┘{Colors.NC}""")
 
 
-def save_session_state(session: DebateSession):
+def save_session_state(session: PlanningSession):
     """Save current session state atomically for resumption"""
     if not session.session_dir:
         return
@@ -861,7 +861,7 @@ def save_session_state(session: DebateSession):
         raise
 
 
-def load_session_state(session_dir: str) -> Optional[DebateSession]:
+def load_session_state(session_dir: str) -> Optional[PlanningSession]:
     """Load a previous session state for resumption"""
     state_file = Path(session_dir) / "session_state.json"
 
@@ -875,7 +875,7 @@ def load_session_state(session_dir: str) -> Optional[DebateSession]:
     # Reconstruct rounds
     rounds = []
     for r_data in state["rounds"]:
-        round_obj = DebateRound(round_number=r_data["round_number"])
+        round_obj = PlanningRound(round_number=r_data["round_number"])
         if "agent_a" in r_data:
             round_obj.agent_a_response = AgentResponse(
                 content=r_data["agent_a"]["content"],
@@ -892,7 +892,7 @@ def load_session_state(session_dir: str) -> Optional[DebateSession]:
             )
         rounds.append(round_obj)
 
-    session = DebateSession(
+    session = PlanningSession(
         initial_prompt=state["initial_prompt"],
         rounds=rounds,
         final_design=state.get("final_design", ""),
@@ -1446,18 +1446,18 @@ def check_convergence(agent_a_response: AgentResponse, agent_b_response: AgentRe
         return ConvergenceStatus.DEBATING
 
 
-def run_debate(
+def run_planning(
     initial_prompt: str = "",
     max_rounds: int = 8,
     working_dir: str = ".",
-    output_dir: str = "./debate_output",
+    output_dir: str = "./plan_output",
     verbose: bool = False,
     implement: bool = False,
-    resumed_session: Optional[DebateSession] = None,
+    resumed_session: Optional[PlanningSession] = None,
     timeout: int = 300,
     model: str = 'sonnet'
-) -> DebateSession:
-    """Run the full debate between two Claude agents"""
+) -> PlanningSession:
+    """Run the full planning session between two Claude agents"""
 
     print_header()
 
@@ -1492,7 +1492,7 @@ def run_debate(
         session_dir = output_path / f"session_{timestamp}"
         session_dir.mkdir(exist_ok=True)
 
-        session = DebateSession(
+        session = PlanningSession(
             initial_prompt=initial_prompt,
             session_dir=str(session_dir),
             max_rounds=max_rounds,
@@ -1502,7 +1502,7 @@ def run_debate(
 
         print(f"{Colors.BOLD}Initial Prompt:{Colors.NC}")
         print(f"{Colors.CYAN}{initial_prompt}{Colors.NC}\n")
-        print(f"{Colors.YELLOW}Starting debate (max {max_rounds} rounds)...{Colors.NC}")
+        print(f"{Colors.YELLOW}Starting planning session (max {max_rounds} rounds)...{Colors.NC}")
         print(f"{Colors.CYAN}Session: {session_dir}{Colors.NC}\n")
 
     # Track state - initialize from resumed session if applicable
@@ -1516,11 +1516,11 @@ def run_debate(
         agent_a_response = last_round.agent_a_response
         agent_b_response = last_round.agent_b_response
 
-    # Main debate loop with signal handler for graceful interrupts
+    # Main planning loop with signal handler for graceful interrupts
     with interrupt_handler(session):
         for round_num in range(start_round, max_rounds + 1):
             round_start_time = time.time()
-            debate_round = DebateRound(round_number=round_num)
+            planning_round = PlanningRound(round_number=round_num)
 
             # === Agent A Turn ===
             print_progress(round_num, max_rounds, "A", "Designing...",
@@ -1567,7 +1567,7 @@ Output a COMPLETE design, not just feedback. End with "PROMPT_FOR_CRITIC:" for w
             )
 
             agent_a_response = parse_agent_response(raw_response_a, is_agent_a=True)
-            debate_round.agent_a_response = agent_a_response
+            planning_round.agent_a_response = agent_a_response
 
             if verbose:
                 print(f"\n{raw_response_a}\n")
@@ -1611,7 +1611,7 @@ If their design is already optimal and you can't improve it, signal ACCEPTING_FI
             )
 
             agent_b_response = parse_agent_response(raw_response_b, is_agent_a=False)
-            debate_round.agent_b_response = agent_b_response
+            planning_round.agent_b_response = agent_b_response
 
             if verbose:
                 print(f"\n{raw_response_b}\n")
@@ -1619,7 +1619,7 @@ If their design is already optimal and you can't improve it, signal ACCEPTING_FI
             signal_msg = "ACCEPTING_FINAL - agrees design is optimal" if agent_b_response.convergence_signal == "ACCEPTING_FINAL" else "ITERATING - design still evolving"
             print(f"   Signal: {signal_msg}")
 
-            session.rounds.append(debate_round)
+            session.rounds.append(planning_round)
 
             # Calculate round metrics
             round_duration = time.time() - round_start_time
@@ -1681,11 +1681,11 @@ If their design is already optimal and you can't improve it, signal ACCEPTING_FI
     return session
 
 
-def save_session(session: DebateSession, session_dir: Path):
-    """Save the debate session to files"""
+def save_session(session: PlanningSession, session_dir: Path):
+    """Save the planning session to files"""
 
     # Save full history as markdown
-    history_file = session_dir / "debate_history.md"
+    history_file = session_dir / "planning_history.md"
     with open(history_file, 'w') as f:
         f.write(f"# Claude Code Debate Session\n\n")
         f.write(f"**Started:** {session.started_at}\n")
@@ -1737,7 +1737,7 @@ def run_implementation(final_design: str, original_task: str, working_dir: str):
 
     implementation_prompt = f"""## Implementation Task
 
-The following design has been agreed upon through collaborative debate. Now implement it.
+The following design has been agreed upon through collaborative planning. Now implement it.
 
 ### Original Task
 {original_task}
@@ -1792,12 +1792,12 @@ Begin implementation now."""
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Claude Code Debate System - Two AI agents debate to optimal designs"
+        description="Plan With Agents - Two AI agents collaborate to create optimal designs"
     )
     parser.add_argument(
         'prompt',
         nargs='?',
-        help='Initial prompt for the debate'
+        help='Initial prompt for the planning session'
     )
     parser.add_argument(
         '-f', '--file',
@@ -1807,12 +1807,12 @@ def main():
         '-m', '--max-rounds',
         type=int,
         default=None,  # Will be resolved from config
-        help='Maximum debate rounds (default: 8)'
+        help='Maximum planning rounds (default: 8)'
     )
     parser.add_argument(
         '-o', '--output',
         default=None,  # Will be resolved from config
-        help='Output directory for debate logs'
+        help='Output directory for planning session logs'
     )
     parser.add_argument(
         '-w', '--working-dir',
@@ -1968,8 +1968,8 @@ def main():
         for warning in prompt_result.warnings:
             report_warning(warning)
 
-    # Run the debate
-    run_debate(
+    # Run the planning session
+    run_planning(
         initial_prompt=initial_prompt or "",
         max_rounds=config.max_rounds,
         working_dir=config.working_dir,
