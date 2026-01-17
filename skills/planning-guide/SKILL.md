@@ -2,8 +2,8 @@
 name: planning-guide
 description: Guide users through multi-turn planning tool usage, result interpretation, and quality validation
 trigger_keywords:
-  - "plan-with-debate"
-  - "/plan-with-debate"
+  - "plan-with-agents"
+  - "/plan-with-agents"
   - "planning tool"
   - "multi-turn planning"
   - "planning consensus"
@@ -44,13 +44,13 @@ trigger_context:
 
 ```bash
 # Default (most cases)
-/plan-with-debate "Design API caching layer"
+/plan-with-agents "Design API caching layer"
 
 # Quick consensus (simple multi-approach task)
-/plan-with-debate --max-rounds 5 "Add rate limiting"
+/plan-with-agents --max-rounds 5 "Add rate limiting"
 
 # Deep exploration (complex/critical)
-/plan-with-debate --model opus --max-rounds 12 "Design payment processing"
+/plan-with-agents --model opus --max-rounds 12 "Design payment processing"
 ```
 
 ### Response Templates
@@ -61,7 +61,7 @@ trigger_context:
 "No need for multi-turn planning - [task] has a standard approach. Just implement [specific guidance]."
 
 **If task has trade-offs:**
-"Yes, [task] involves trade-offs around [X vs Y]. Run: `/plan-with-debate '[specific task description]'`"
+"Yes, [task] involves trade-offs around [X vs Y]. Run: `/plan-with-agents '[specific task description]'`"
 
 **STOP - Other sections are for post-planning analysis**
 
@@ -151,13 +151,13 @@ Open questions (deferred):
 
 ```bash
 # Add more rounds
-/plan-with-debate --resume latest --max-rounds 10
+/plan-with-agents --resume latest --max-rounds 10
 
 # Inject new constraint
-/plan-with-debate --resume latest "Consider: must support 10k req/sec"
+/plan-with-agents --resume latest "Consider: must support 10k req/sec"
 
 # Request specific detail
-/plan-with-debate --resume latest "Add concrete code examples"
+/plan-with-agents --resume latest "Add concrete code examples"
 ```
 
 ---
