@@ -87,7 +87,7 @@ Result = Union[Success[T], Failure]
 
 
 class ConvergenceStatus(Enum):
-    DEBATING = "debating"
+    PLANNING = "planning"
     CONVERGING = "converging"
     CONSENSUS = "consensus"
     INTERRUPTED = "interrupted"
@@ -433,7 +433,7 @@ class PlanningSession:
     initial_prompt: str
     rounds: list = field(default_factory=list)
     final_design: str = ""
-    status: ConvergenceStatus = ConvergenceStatus.DEBATING
+    status: ConvergenceStatus = ConvergenceStatus.PLANNING
     started_at: str = field(default_factory=lambda: datetime.now().isoformat())
     ended_at: str = ""
     session_dir: str = ""
@@ -443,7 +443,7 @@ class PlanningSession:
 
 
 @dataclass
-class DebateConfig:
+class PlanningConfig:
     """Configuration with layered resolution: defaults < file < env < CLI"""
     max_rounds: int = 8
     model: str = 'sonnet'
@@ -454,9 +454,9 @@ class DebateConfig:
     working_dir: str = '.'
 
 
-def load_config(working_dir: str = '.') -> DebateConfig:
+def load_config(working_dir: str = '.') -> PlanningConfig:
     """Load configuration with 3-level precedence: defaults < file < env"""
-    config = DebateConfig()
+    config = PlanningConfig()
 
     # Level 1: File config (.plan.json in working dir or home)
     for config_path in [Path(working_dir) / '.plan.json', Path.home() / '.plan.json']:
@@ -514,7 +514,7 @@ def load_config(working_dir: str = '.') -> DebateConfig:
     return config
 
 
-def apply_cli_args(config: DebateConfig, args) -> DebateConfig:
+def apply_cli_args(config: PlanningConfig, args) -> PlanningConfig:
     """Apply CLI arguments over config (highest precedence)"""
     if args.max_rounds is not None:
         config.max_rounds = args.max_rounds
@@ -1443,7 +1443,7 @@ def check_convergence(agent_a_response: AgentResponse, agent_b_response: AgentRe
     elif a_ready or b_minor:
         return ConvergenceStatus.CONVERGING
     else:
-        return ConvergenceStatus.DEBATING
+        return ConvergenceStatus.PLANNING
 
 
 def run_planning(
@@ -1687,7 +1687,7 @@ def save_session(session: PlanningSession, session_dir: Path):
     # Save full history as markdown
     history_file = session_dir / "planning_history.md"
     with open(history_file, 'w') as f:
-        f.write(f"# Claude Code Debate Session\n\n")
+        f.write(f"# Plan With Agents Session\n\n")
         f.write(f"**Started:** {session.started_at}\n")
         f.write(f"**Ended:** {session.ended_at}\n")
         f.write(f"**Status:** {session.status.value}\n")
