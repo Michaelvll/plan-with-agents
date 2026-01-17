@@ -786,7 +786,7 @@ def print_round_summary(session: PlanningSession, round_num: int, max_rounds: in
 def print_header():
     print(f"""
 {Colors.BOLD}╔══════════════════════════════════════════════════════════════════════╗{Colors.NC}
-{Colors.BOLD}║           {Colors.CYAN}Claude Code Debate System{Colors.NC}{Colors.BOLD}                                  ║{Colors.NC}
+{Colors.BOLD}║                    {Colors.CYAN}Plan With Agents{Colors.NC}{Colors.BOLD}                                  ║{Colors.NC}
 {Colors.BOLD}║     {Colors.YELLOW}Two AI agents collaborating through self-directed planning{Colors.NC}{Colors.BOLD}       ║{Colors.NC}
 {Colors.BOLD}╚══════════════════════════════════════════════════════════════════════╝{Colors.NC}
 """)
@@ -1663,7 +1663,7 @@ If their design is already optimal and you can't improve it, signal ACCEPTING_FI
     # Save session files
     save_session(session, session_dir)
 
-    print(f"\n{Colors.BOLD}Debate complete!{Colors.NC}")
+    print(f"\n{Colors.BOLD}Planning complete!{Colors.NC}")
     print(f"Session saved to: {Colors.CYAN}{session_dir}{Colors.NC}")
 
     # Show hint for using the design with Claude Code
