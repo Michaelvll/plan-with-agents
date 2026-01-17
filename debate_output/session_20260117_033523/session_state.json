@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Create a user authentication system with login and logout",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T03:35:23.277685",
+  "ended_at": "",
+  "max_rounds": 2,
+  "working_dir": "/home/gcpuser/agent-battle/.claude/plugins/plan-with-debate",
+  "current_round": 0,
+  "round_times": []
+}

@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Design a file upload service with validation and storage",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T08:24:14.973644",
+  "ended_at": "",
+  "max_rounds": 3,
+  "working_dir": ".",
+  "current_round": 0,
+  "round_times": []
+}

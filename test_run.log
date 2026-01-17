@@ -1,0 +1,14 @@
+[1m[0;36m================================[0m
+[1m[0;36mDebate System Iteration Test[0m
+[1m[0;36m================================[0m
+
+Configuration:
+  Max iterations: 10
+  Max rounds per debate: 3
+  Timeout per debate: 180s
+
+
+[1m[0;36mIteration 1/10[0m
+[1;33mPrompt: Design a REST API for a todo list application with user authentication[0m
+
+./test_iterations.sh: line 100: 80296 Killed                  timeout $TIMEOUT ./debate --max-rounds $MAX_ROUNDS "$PROMPT" > "$RESULTS_DIR/iteration_${i}.log" 2>&1

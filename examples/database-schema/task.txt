@@ -1,0 +1,8 @@
+Design schema for e-commerce orders with indexing strategy
+
+Requirements:
+- Support for orders, order items, customers, products
+- Handle order status transitions
+- Efficient queries for common operations
+- Consider read vs write optimization
+- Plan for future scale

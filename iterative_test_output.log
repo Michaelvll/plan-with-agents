@@ -1,0 +1,45 @@
+
+[1m[0;36m======================================================================[0m
+[1m[0;36mIterative Test-Fix Cycle (Max 10 iterations)[0m
+[1m[0;36m======================================================================[0m
+
+
+[1m[0;36m======================================================================[0m
+[1m[0;36mIteration 1 - Testing with various prompts[0m
+[1m[0;36m======================================================================[0m
+
+
+[1mRunning: Debate: Design a REST API for a simple blog with posts and...[0m
+
+[1mTest Results:[0m
+[0;31m✗ FAIL[0m: Debate: Design a REST API for a simple blog with posts and
+  Timeout
+
+[1m[0;36m======================================================================[0m
+[1m[0;36mIteration 1 Summary[0m
+[1m[0;36m======================================================================[0m
+
+Results: [0;32m0 passed[0m, [0;31m1 failed[0m
+
+[1;33mIssues Found:[0m
+  - Debate: Design a REST API for a simple blog with posts and
+    Timeout
+
+[1;33mIssues found. Check the sessions for details.[0m
+
+[0;36mRecommendations:[0m
+1. Review the final_design.md files in the failed sessions
+2. Check if agents are following format requirements
+3. Verify that validation warnings are being shown
+4. Consider strengthening system prompts further
+
+[0;31mStopping due to test failures.[0m
+
+[1m[0;36m======================================================================[0m
+[1m[0;36mOverall Summary[0m
+[1m[0;36m======================================================================[0m
+
+Iterations completed: 1
+  Iteration 1: [0;31mFAIL[0m (0/1)
+
+[0;31mSystem needs attention.[0m

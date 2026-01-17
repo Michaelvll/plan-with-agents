@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Design a simple hello world API",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T08:19:50.274263",
+  "ended_at": "",
+  "max_rounds": 1,
+  "working_dir": ".",
+  "current_round": 0,
+  "round_times": []
+}

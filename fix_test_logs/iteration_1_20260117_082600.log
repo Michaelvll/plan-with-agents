@@ -1,0 +1,83 @@
+
+╔══════════════════════════════════════════════════════════════════════╗
+║           Claude Code Debate System                                  ║
+║     Two AI agents collaborating through self-directed planning       ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Initial Prompt:
+Design a REST API for a todo list application with user authentication
+
+Starting debate (max 3 rounds)...
+Session: debate_output/session_20260117_082601
+
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/3 (0%)
+🔵 Agent A (Architect): Designing...
+   → Creating initial design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (37s, 409 lines)
+   Signal: ITERATING - design still evolving
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/3 (0%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (98s, 884 lines)
+   Signal: ITERATING - design still evolving
+
+──────────────────────────────────────────────────────────────────────
+  📊 Round 1/3 Summary
+──────────────────────────────────────────────────────────────────────
+  ⏱️  Duration: 2m 15s (avg: 135s/round)
+  📈 Similarity: [███░░░░░░░] 39%
+  ⏳ Est. remaining: 4m 30s (2 rounds)
+
+  Architect: 🔄 ITERATING
+  Reviewer:  🔄 ITERATING
+
+  🔄 Active refinement - exploring alternatives
+──────────────────────────────────────────────────────────────────────
+
+
+[██████░░░░░░░░░░░░░░] Round 2/3 (33%)
+🔵 Agent A (Architect): Designing...
+   → Reviewing and improving design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (141s, 1004 lines)
+   Signal: ITERATING - design still evolving
+
+[██████░░░░░░░░░░░░░░] Round 2/3 (33%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (133s, 957 lines)
+   Signal: ACCEPTING_FINAL - agrees design is optimal
+
+──────────────────────────────────────────────────────────────────────
+  📊 Round 2/3 Summary
+──────────────────────────────────────────────────────────────────────
+  ⏱️  Duration: 4m 34s (avg: 205s/round)
+  📈 Similarity: [████████░░] 86%
+  ⏳ Est. remaining: 3m 24s (1 round)
+
+  Architect: 🔄 ITERATING
+  Reviewer:  ✅ ACCEPTING_FINAL
+
+  ⭐ Near consensus - likely to converge next round
+──────────────────────────────────────────────────────────────────────
+
+
+[█████████████░░░░░░░] Round 3/3 (66%)
+🔵 Agent A (Architect): Designing...
+   → Reviewing and improving design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (151s, 1044 lines)
+   Signal: PROPOSING_FINAL - believes design is optimal
+
+[█████████████░░░░░░░] Round 3/3 (66%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+
+⚠ Received SIGTERM! Saving session...
+✓ Session saved to debate_output/session_20260117_082601
+Resume with: debate --resume debate_output/session_20260117_082601

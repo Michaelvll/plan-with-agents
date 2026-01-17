@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Design: 2 REST endpoints for todos (list, create)",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T03:15:03.962606",
+  "ended_at": "",
+  "max_rounds": 2,
+  "working_dir": ".",
+  "current_round": 0,
+  "round_times": []
+}

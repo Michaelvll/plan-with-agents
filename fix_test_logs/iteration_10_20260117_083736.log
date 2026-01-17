@@ -1,0 +1,29 @@
+
+╔══════════════════════════════════════════════════════════════════════╗
+║           Claude Code Debate System                                  ║
+║     Two AI agents collaborating through self-directed planning       ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Initial Prompt:
+Design a shopping cart API with inventory management
+
+Starting debate (max 2 rounds)...
+Session: debate_output/session_20260117_094328
+
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/2 (0%)
+🔵 Agent A (Architect): Designing...
+   → Creating initial design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (59s, 492 lines)
+   Signal: ITERATING - design still evolving
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/2 (0%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ⚠ Request timed out after 212s. Retrying in 5s...
+
+⚠ Received SIGTERM! Saving session...
+✓ Session saved to debate_output/session_20260117_094328
+Resume with: debate --resume debate_output/session_20260117_094328

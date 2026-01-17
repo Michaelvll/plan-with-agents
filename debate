@@ -1,0 +1,1986 @@
+#!/usr/bin/env python3
+"""
+Claude Code Debate System
+
+Two Claude Code instances debate with each other, where each agent generates
+the prompt for the other agent. This creates an organic, self-directed debate
+that converges on optimal designs.
+
+Usage:
+    python debate.py "Design a REST API for a todo app"
+    python debate.py -f requirements.txt --max-rounds 10
+    python debate.py --implement "Design and build a CLI tool"
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Tuple, TypeVar, Generic, Union, Callable, List, Any, Dict
+from dataclasses import dataclass, field
+from enum import Enum
+import time
+import difflib
+import shutil
+import tempfile
+import atexit
+import signal
+from contextlib import contextmanager
+
+# ============================================================================
+# Result Type - Explicit Error Handling
+# ============================================================================
+
+T = TypeVar('T')
+
+
+class ErrorSeverity(Enum):
+    """Classifies error severity for appropriate handling"""
+    FATAL = "fatal"           # Must stop immediately
+    RECOVERABLE = "recoverable"  # Can retry
+    WARNING = "warning"       # Continue but inform user
+
+
+@dataclass
+class ErrorInfo:
+    """Actionable error information"""
+    code: str                    # Machine-readable: "CLI_TIMEOUT", "INVALID_PROMPT"
+    message: str                 # Human-readable description
+    severity: ErrorSeverity
+    suggestion: str = ""         # What the user should do
+    context: dict = field(default_factory=dict)  # Debug info
+
+    def __str__(self) -> str:
+        s = f"[{self.code}] {self.message}"
+        if self.suggestion:
+            s += f"\n  → {self.suggestion}"
+        return s
+
+
+@dataclass
+class Success(Generic[T]):
+    """Successful operation with optional warnings"""
+    value: T
+    warnings: List[ErrorInfo] = field(default_factory=list)
+
+    @property
+    def is_success(self) -> bool:
+        return True
+
+
+@dataclass
+class Failure:
+    """Failed operation with error info"""
+    error: ErrorInfo
+    partial_value: Optional[Any] = None
+
+    @property
+    def is_success(self) -> bool:
+        return False
+
+
+Result = Union[Success[T], Failure]
+
+
+class ConvergenceStatus(Enum):
+    DEBATING = "debating"
+    CONVERGING = "converging"
+    CONSENSUS = "consensus"
+    INTERRUPTED = "interrupted"
+    FAILED = "failed"
+
+
+# ============================================================================
+# Input Validation
+# ============================================================================
+
+def validate_prompt(raw_input: str) -> Result[str]:
+    """Validate and sanitize user prompt"""
+    if not raw_input:
+        return Failure(ErrorInfo(
+            code="EMPTY_PROMPT",
+            message="Prompt cannot be empty",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Provide a task description, e.g., 'Design a REST API for user management'"
+        ))
+
+    # Sanitize
+    text = raw_input.strip()
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    warnings = []
+
+    # Length validation
+    MIN_LENGTH, MAX_LENGTH = 10, 50000
+
+    if len(text) < MIN_LENGTH:
+        return Failure(ErrorInfo(
+            code="PROMPT_TOO_SHORT",
+            message=f"Prompt is too short ({len(text)} chars, minimum {MIN_LENGTH})",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Provide more detail about the task"
+        ))
+
+    if len(text) > MAX_LENGTH:
+        return Failure(ErrorInfo(
+            code="PROMPT_TOO_LONG",
+            message=f"Prompt exceeds maximum length ({len(text)} > {MAX_LENGTH} chars)",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Summarize or split into multiple tasks"
+        ))
+
+    # Quality warnings (non-blocking)
+    word_count = len(text.split())
+    if word_count < 5:
+        warnings.append(ErrorInfo(
+            code="PROMPT_VAGUE",
+            message="Prompt may be too vague for a detailed design",
+            severity=ErrorSeverity.WARNING,
+            suggestion="Consider adding requirements, constraints, or context"
+        ))
+
+    return Success(value=text, warnings=warnings)
+
+
+def validate_config(
+    max_rounds: int = 8,
+    timeout: int = 300,
+    working_dir: str = ".",
+    output_dir: str = "./debate_output"
+) -> Result[dict]:
+    """Validate all configuration parameters"""
+    warnings = []
+
+    # max_rounds bounds
+    if max_rounds < 1:
+        return Failure(ErrorInfo(
+            code="INVALID_ROUNDS",
+            message=f"max_rounds must be at least 1 (got {max_rounds})",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Use --max-rounds with a positive number"
+        ))
+    if max_rounds > 30:
+        return Failure(ErrorInfo(
+            code="ROUNDS_TOO_HIGH",
+            message=f"max_rounds cannot exceed 30 (got {max_rounds})",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Use 30 or fewer rounds to avoid excessive API costs"
+        ))
+
+    # Working directory validation
+    wd = Path(working_dir).resolve()
+    if not wd.exists():
+        return Failure(ErrorInfo(
+            code="WORKING_DIR_NOT_FOUND",
+            message=f"Working directory does not exist: {wd}",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Create the directory or specify an existing one with --working-dir"
+        ))
+    if not wd.is_dir():
+        return Failure(ErrorInfo(
+            code="WORKING_DIR_NOT_DIR",
+            message=f"Path is not a directory: {wd}",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Specify a directory path, not a file"
+        ))
+
+    # Output directory - will create if needed
+    od = Path(output_dir).resolve()
+    if od.exists() and not od.is_dir():
+        return Failure(ErrorInfo(
+            code="OUTPUT_DIR_NOT_DIR",
+            message=f"Output path exists but is not a directory: {od}",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Remove the file or use a different --output path"
+        ))
+
+    if max_rounds > 15:
+        warnings.append(ErrorInfo(
+            code="HIGH_ROUND_COUNT",
+            message=f"High round count ({max_rounds}) may be slow and costly",
+            severity=ErrorSeverity.WARNING,
+            suggestion="Consider starting with 8-10 rounds"
+        ))
+
+    return Success(
+        value={
+            'max_rounds': max_rounds,
+            'timeout': timeout,
+            'working_dir': str(wd),
+            'output_dir': str(od)
+        },
+        warnings=warnings
+    )
+
+
+def check_claude_cli() -> Result[str]:
+    """Verify Claude CLI is installed and accessible"""
+    if not shutil.which('claude'):
+        return Failure(ErrorInfo(
+            code="CLI_NOT_FOUND",
+            message="Claude CLI not found in PATH",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Install Claude CLI: npm install -g @anthropic-ai/claude-code"
+        ))
+
+    try:
+        result = subprocess.run(
+            ['claude', '--version'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            return Success(value=version)
+        else:
+            return Failure(ErrorInfo(
+                code="CLI_ERROR",
+                message=f"Claude CLI error: {result.stderr.strip()}",
+                severity=ErrorSeverity.FATAL,
+                suggestion="Run 'claude --help' to verify installation"
+            ))
+    except subprocess.TimeoutExpired:
+        return Failure(ErrorInfo(
+            code="CLI_TIMEOUT",
+            message="Claude CLI version check timed out",
+            severity=ErrorSeverity.RECOVERABLE,
+            suggestion="Check your network connection"
+        ))
+    except Exception as e:
+        return Failure(ErrorInfo(
+            code="CLI_ERROR",
+            message=f"Unexpected error: {str(e)}",
+            severity=ErrorSeverity.FATAL
+        ))
+
+
+# ============================================================================
+# Signal Handler for Graceful Interrupts
+# ============================================================================
+
+@contextmanager
+def interrupt_handler(session: 'DebateSession'):
+    """Context manager for graceful interrupt handling with session save"""
+
+    def handler(signum, frame):
+        sig_name = signal.Signals(signum).name
+        print(f"\n{Colors.YELLOW}⚠ Received {sig_name}! Saving session...{Colors.NC}")
+
+        if session and session.session_dir:
+            try:
+                save_session_state(session)
+                print(f"{Colors.GREEN}✓ Session saved to {session.session_dir}{Colors.NC}")
+                print(f"Resume with: {Colors.CYAN}debate --resume {session.session_dir}{Colors.NC}")
+            except Exception as e:
+                print(f"{Colors.RED}✗ Failed to save session: {e}{Colors.NC}",
+                      file=sys.stderr)
+
+        # Exit with standard signal exit code
+        sys.exit(128 + signum)
+
+    # Save original handlers
+    old_sigint = signal.signal(signal.SIGINT, handler)
+    old_sigterm = signal.signal(signal.SIGTERM, handler)
+
+    # SIGHUP only exists on Unix
+    old_sighup = None
+    if hasattr(signal, 'SIGHUP'):
+        old_sighup = signal.signal(signal.SIGHUP, handler)
+
+    try:
+        yield
+    finally:
+        # Restore original handlers
+        signal.signal(signal.SIGINT, old_sigint)
+        signal.signal(signal.SIGTERM, old_sigterm)
+        if old_sighup is not None:
+            signal.signal(signal.SIGHUP, old_sighup)
+
+
+# ============================================================================
+# Self-Test Diagnostics
+# ============================================================================
+
+def check_output_writable(output_dir: str = './debate_output') -> Result[str]:
+    """Check if we can write to output directory"""
+    try:
+        test_dir = Path(output_dir)
+        test_dir.mkdir(parents=True, exist_ok=True)
+        test_file = test_dir / '.write_test'
+        test_file.write_text('test')
+        test_file.unlink()
+        return Success(str(test_dir.resolve()))
+    except PermissionError:
+        return Failure(ErrorInfo(
+            code="OUTPUT_NOT_WRITABLE",
+            message="Cannot write to output directory",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Check permissions or use --output"
+        ))
+    except Exception as e:
+        return Failure(ErrorInfo(
+            code="OUTPUT_ERROR",
+            message=str(e),
+            severity=ErrorSeverity.FATAL
+        ))
+
+
+def check_disk_space() -> Result[str]:
+    """Check for reasonable disk space"""
+    try:
+        total, used, free = shutil.disk_usage('.')
+        free_mb = free // (1024 * 1024)
+        if free_mb < 100:
+            return Failure(ErrorInfo(
+                code="LOW_DISK_SPACE",
+                message=f"Only {free_mb}MB free",
+                severity=ErrorSeverity.WARNING,
+                suggestion="Free up disk space"
+            ))
+        return Success(f"{free_mb}MB free")
+    except Exception:
+        return Success("Unknown (check skipped)")
+
+
+def check_python_version() -> Result[str]:
+    """Check Python version"""
+    version = sys.version_info
+    if version < (3, 8):
+        return Failure(ErrorInfo(
+            code="PYTHON_VERSION",
+            message=f"Python {version.major}.{version.minor} is too old",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Upgrade to Python 3.8+"
+        ))
+    return Success(f"{version.major}.{version.minor}.{version.micro}")
+
+
+def run_self_test(output_dir: str = './debate_output') -> bool:
+    """Run comprehensive self-diagnostics"""
+    print(f"{Colors.BOLD}Running self-diagnostics...{Colors.NC}\n")
+
+    all_passed = True
+
+    tests = [
+        ("Claude CLI installed", check_claude_cli),
+        ("Output directory writable", lambda: check_output_writable(output_dir)),
+        ("Disk space available", check_disk_space),
+        ("Python version", check_python_version),
+    ]
+
+    for name, check_fn in tests:
+        result = check_fn()
+        if result.is_success:
+            print(f"  {Colors.GREEN}✓{Colors.NC} {name}: {result.value}")
+        else:
+            if result.error.severity == ErrorSeverity.WARNING:
+                print(f"  {Colors.YELLOW}⚠{Colors.NC} {name}: {result.error.message}")
+            else:
+                print(f"  {Colors.RED}✗{Colors.NC} {name}: {result.error.message}")
+                all_passed = False
+            if result.error.suggestion:
+                print(f"    → {result.error.suggestion}")
+
+    print()
+    if all_passed:
+        print(f"{Colors.GREEN}All checks passed!{Colors.NC}")
+    else:
+        print(f"{Colors.RED}Some checks failed. Please fix the issues above.{Colors.NC}")
+
+    return all_passed
+
+
+def report_error(error: ErrorInfo):
+    """Print error with actionable suggestion"""
+    print(f"\n{Colors.RED}✗ {error.message}{Colors.NC}", file=sys.stderr)
+    if error.suggestion:
+        print(f"  {Colors.YELLOW}→ {error.suggestion}{Colors.NC}", file=sys.stderr)
+
+
+def report_warning(warning: ErrorInfo):
+    """Print warning"""
+    print(f"{Colors.YELLOW}⚠ {warning.message}{Colors.NC}")
+    if warning.suggestion:
+        print(f"  → {warning.suggestion}")
+
+
+@dataclass
+class AgentResponse:
+    """Structured response from an agent"""
+    content: str
+    prompt_for_other: str
+    convergence_signal: str
+    raw_response: str
+
+
+@dataclass
+class DebateRound:
+    """A single round in the debate"""
+    round_number: int
+    agent_a_response: Optional[AgentResponse] = None
+    agent_b_response: Optional[AgentResponse] = None
+
+
+@dataclass
+class DebateSession:
+    """Tracks the entire debate session"""
+    initial_prompt: str
+    rounds: list = field(default_factory=list)
+    final_design: str = ""
+    status: ConvergenceStatus = ConvergenceStatus.DEBATING
+    started_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    ended_at: str = ""
+    session_dir: str = ""
+    max_rounds: int = 8
+    working_dir: str = "."
+    round_times: List[float] = field(default_factory=list)  # Track timing per round
+
+
+@dataclass
+class DebateConfig:
+    """Configuration with layered resolution: defaults < file < env < CLI"""
+    max_rounds: int = 8
+    model: str = 'sonnet'
+    timeout: int = 300
+    verbose: bool = False
+    no_color: bool = False
+    output_dir: str = './debate_output'
+    working_dir: str = '.'
+
+
+def load_config(working_dir: str = '.') -> DebateConfig:
+    """Load configuration with 3-level precedence: defaults < file < env"""
+    config = DebateConfig()
+
+    # Level 1: File config (.debate.json in working dir or home)
+    for config_path in [Path(working_dir) / '.debate.json', Path.home() / '.debate.json']:
+        if not config_path.exists():
+            continue
+
+        try:
+            with open(config_path) as f:
+                raw = json.load(f)
+
+            # Map JSON keys to config attributes
+            KEY_MAP = {
+                'maxRounds': 'max_rounds',
+                'max_rounds': 'max_rounds',
+                'model': 'model',
+                'timeout': 'timeout',
+                'verbose': 'verbose',
+                'noColor': 'no_color',
+                'no_color': 'no_color',
+                'outputDir': 'output_dir',
+                'output_dir': 'output_dir',
+            }
+
+            for json_key, attr in KEY_MAP.items():
+                if json_key in raw:
+                    setattr(config, attr, raw[json_key])
+
+            break  # Use first found config file
+
+        except json.JSONDecodeError as e:
+            print(f"Warning: Invalid JSON in {config_path}: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"Warning: Error reading {config_path}: {e}", file=sys.stderr)
+
+    # Level 2: Environment variables (override file config)
+    env_map = {
+        'DEBATE_MAX_ROUNDS': ('max_rounds', int),
+        'DEBATE_MODEL': ('model', str),
+        'DEBATE_TIMEOUT': ('timeout', int),
+        'DEBATE_VERBOSE': ('verbose', lambda x: x.lower() in ('1', 'true', 'yes')),
+    }
+
+    for env_var, (attr, converter) in env_map.items():
+        value = os.environ.get(env_var)
+        if value:
+            try:
+                setattr(config, attr, converter(value))
+            except ValueError:
+                print(f"Warning: Invalid {env_var}: {value}", file=sys.stderr)
+
+    # NO_COLOR standard (https://no-color.org/)
+    if os.environ.get('NO_COLOR'):
+        config.no_color = True
+
+    return config
+
+
+def apply_cli_args(config: DebateConfig, args) -> DebateConfig:
+    """Apply CLI arguments over config (highest precedence)"""
+    if args.max_rounds is not None:
+        config.max_rounds = args.max_rounds
+    if hasattr(args, 'model') and args.model is not None:
+        config.model = args.model
+    if hasattr(args, 'timeout') and args.timeout is not None:
+        config.timeout = args.timeout
+    if args.verbose:
+        config.verbose = True
+    if hasattr(args, 'no_color') and args.no_color:
+        config.no_color = True
+    if args.output:
+        config.output_dir = args.output
+    if args.working_dir:
+        config.working_dir = args.working_dir
+    return config
+
+
+# ============================================================================
+# Live Progress Tracking
+# ============================================================================
+
+@dataclass
+class KeyPoint:
+    """A key point extracted from streaming output"""
+    category: str       # "architecture", "api", "data", etc.
+    summary: str        # Short summary
+    section: str        # Which section it came from
+
+class LiveProgressTracker:
+    """Extracts and displays key points from streaming output in real-time"""
+
+    SECTION_MARKERS = {
+        "### Design": "📐 Design",
+        "### Rationale": "💭 Rationale",
+        "### What I Changed": "🔄 Changes",
+        "### What I Kept": "✓ Kept",
+        "### Convergence": "🎯 Convergence",
+        "PROMPT_FOR_CRITIC": "📝 Focus for Reviewer",
+        "PROMPT_FOR_ARCHITECT": "📝 Focus for Architect",
+    }
+
+    ASPECT_KEYWORDS = {
+        "architecture": ["architect", "component", "service", "layer", "module", "system", "structure"],
+        "api": ["endpoint", "route", "REST", "API", "request", "response", "HTTP"],
+        "data": ["schema", "model", "database", "entity", "table", "field", "storage"],
+        "security": ["auth", "security", "permission", "token", "encrypt", "validate"],
+        "error": ["error", "exception", "fallback", "retry", "timeout", "handle"],
+    }
+
+    def __init__(self):
+        self.current_section = "Starting"
+        self.key_points: List[KeyPoint] = []
+        self.lines_in_section = 0
+        self._display_lines = 0
+
+    def process_line(self, line: str) -> Optional[KeyPoint]:
+        """Process a line and extract key points"""
+        stripped = line.strip()
+
+        # Check for section changes
+        for marker, display in self.SECTION_MARKERS.items():
+            if marker in line:
+                self.current_section = display
+                self.lines_in_section = 0
+                return None
+
+        self.lines_in_section += 1
+
+        # Extract bullet points as key points (in Design section)
+        if "📐 Design" in self.current_section:
+            if re.match(r'^\s*[-*•]\s+\S', stripped) or re.match(r'^\s*\d+\.\s+\S', stripped):
+                if len(stripped) > 15:  # Skip very short lines
+                    category = self._classify_aspect(stripped)
+                    summary = self._clean_summary(stripped)
+                    if summary:
+                        kp = KeyPoint(category=category, summary=summary, section=self.current_section)
+                        self.key_points.append(kp)
+                        return kp
+
+        return None
+
+    def _classify_aspect(self, line: str) -> str:
+        """Classify which design aspect a line relates to"""
+        line_lower = line.lower()
+        for aspect, keywords in self.ASPECT_KEYWORDS.items():
+            if any(kw in line_lower for kw in keywords):
+                return aspect
+        return "general"
+
+    def _clean_summary(self, line: str, max_len: int = 60) -> str:
+        """Clean and truncate a line for display"""
+        # Remove markdown formatting
+        clean = re.sub(r'[*_`#\[\]()]', '', line.strip())
+        clean = re.sub(r'^\s*[-*•\d.]+\s*', '', clean)
+        clean = clean.strip()
+
+        if len(clean) > max_len:
+            clean = clean[:max_len-3] + "..."
+        return clean
+
+    def update_display(self, elapsed: int, lines: int):
+        """Update the live progress display"""
+        # Clear previous display
+        if self._display_lines > 0:
+            print(f"\033[{self._display_lines}A\033[J", end='')
+
+        output_lines = []
+        output_lines.append(f"   ⏱️  {elapsed}s | {lines} lines | Section: {self.current_section}")
+
+        # Show last 3 key points
+        if self.key_points:
+            recent = self.key_points[-3:]
+            output_lines.append(f"   Key points:")
+            for kp in recent:
+                icon = {"architecture": "🏗️", "api": "🔌", "data": "💾", "security": "🔒", "error": "⚠️"}.get(kp.category, "•")
+                output_lines.append(f"     {icon} {kp.summary}")
+
+        print('\n'.join(output_lines))
+        sys.stdout.flush()
+        self._display_lines = len(output_lines)
+
+    def finish_display(self):
+        """Clear the live display when done"""
+        if self._display_lines > 0:
+            print(f"\033[{self._display_lines}A\033[J", end='')
+            self._display_lines = 0
+
+    def get_summary(self) -> List[str]:
+        """Get a summary of key points for final display"""
+        if not self.key_points:
+            return []
+
+        # Group by category
+        by_category: Dict[str, List[str]] = {}
+        for kp in self.key_points:
+            if kp.category not in by_category:
+                by_category[kp.category] = []
+            by_category[kp.category].append(kp.summary)
+
+        summary = []
+        for category, points in by_category.items():
+            icon = {"architecture": "🏗️", "api": "🔌", "data": "💾", "security": "🔒", "error": "⚠️"}.get(category, "•")
+            category_display = category.replace("_", " ").title()
+            summary.append(f"{icon} {category_display}: {len(points)} point(s)")
+
+        return summary
+
+
+# ANSI colors with disable support
+class Colors:
+    """ANSI color codes with disable support for --no-color and NO_COLOR env"""
+    _enabled = True
+    _codes = {
+        'RED': '\033[0;31m',
+        'GREEN': '\033[0;32m',
+        'BLUE': '\033[0;34m',
+        'YELLOW': '\033[1;33m',
+        'CYAN': '\033[0;36m',
+        'MAGENTA': '\033[0;35m',
+        'BOLD': '\033[1m',
+        'DIM': '\033[2m',
+        'NC': '\033[0m',
+    }
+
+    # Set attributes at class definition
+    RED = _codes['RED']
+    GREEN = _codes['GREEN']
+    BLUE = _codes['BLUE']
+    YELLOW = _codes['YELLOW']
+    CYAN = _codes['CYAN']
+    MAGENTA = _codes['MAGENTA']
+    BOLD = _codes['BOLD']
+    DIM = _codes['DIM']
+    NC = _codes['NC']
+
+    @classmethod
+    def disable(cls):
+        """Disable all color output"""
+        cls._enabled = False
+        for name in cls._codes:
+            setattr(cls, name, '')
+
+    @classmethod
+    def enable(cls):
+        """Re-enable color output"""
+        cls._enabled = True
+        for name, code in cls._codes.items():
+            setattr(cls, name, code)
+
+    @classmethod
+    def is_enabled(cls) -> bool:
+        return cls._enabled
+
+
+def print_progress(round_num: int, max_rounds: int, agent: str, status: str, extra: str = ""):
+    """Print a clear progress line for Claude Code to observe"""
+    progress_pct = int((round_num - 1) / max_rounds * 100)
+    bar_filled = int(progress_pct / 5)
+    bar = "█" * bar_filled + "░" * (20 - bar_filled)
+
+    agent_icon = "🔵" if agent == "A" else "🟣"
+    agent_name = "Architect" if agent == "A" else "Reviewer"
+
+    print(f"\n[{bar}] Round {round_num}/{max_rounds} ({progress_pct}%)")
+    print(f"{agent_icon} Agent {agent} ({agent_name}): {status}")
+    if extra:
+        print(f"   → {extra}")
+    sys.stdout.flush()
+
+
+def calculate_similarity(text_a: str, text_b: str) -> float:
+    """Calculate similarity between two design texts (0.0 to 1.0)"""
+    lines_a = [l.strip() for l in text_a.split('\n') if l.strip()]
+    lines_b = [l.strip() for l in text_b.split('\n') if l.strip()]
+
+    if not lines_a or not lines_b:
+        return 0.0
+
+    matcher = difflib.SequenceMatcher(None, lines_a, lines_b)
+    return matcher.ratio()
+
+
+def print_round_summary(session: DebateSession, round_num: int, max_rounds: int, duration: float,
+                        convergence_score: float, agent_a_signal: str, agent_b_signal: str):
+    """Print comprehensive summary after each round with ETA"""
+    session.round_times.append(duration)
+
+    score_bar = "█" * int(convergence_score * 10) + "░" * (10 - int(convergence_score * 10))
+
+    # Calculate ETA
+    avg_round_time = sum(session.round_times) / len(session.round_times)
+    remaining_rounds = max_rounds - round_num
+    eta_seconds = avg_round_time * remaining_rounds
+
+    # Format times
+    duration_str = f"{int(duration // 60)}m {int(duration % 60)}s" if duration >= 60 else f"{int(duration)}s"
+    eta_str = f"{int(eta_seconds // 60)}m {int(eta_seconds % 60)}s" if eta_seconds >= 60 else f"{int(eta_seconds)}s"
+
+    print(f"\n{'─' * 70}")
+    print(f"  📊 Round {round_num}/{max_rounds} Summary")
+    print(f"{'─' * 70}")
+    print(f"  ⏱️  Duration: {duration_str} (avg: {avg_round_time:.0f}s/round)")
+    print(f"  📈 Similarity: [{score_bar}] {convergence_score:.0%}")
+
+    if remaining_rounds > 0:
+        print(f"  ⏳ Est. remaining: {eta_str} ({remaining_rounds} round{'s' if remaining_rounds != 1 else ''})")
+
+    # Signal display
+    signal_a_display = "✅ PROPOSING_FINAL" if agent_a_signal == "PROPOSING_FINAL" else f"🔄 {agent_a_signal}"
+    signal_b_display = "✅ ACCEPTING_FINAL" if agent_b_signal == "ACCEPTING_FINAL" else f"🔄 {agent_b_signal}"
+    print(f"\n  Architect: {signal_a_display}")
+    print(f"  Reviewer:  {signal_b_display}")
+
+    # Interpretation
+    if agent_a_signal == "PROPOSING_FINAL" and agent_b_signal == "ACCEPTING_FINAL":
+        print(f"\n  🎉 CONSENSUS REACHED!")
+    elif agent_a_signal == "PROPOSING_FINAL" or convergence_score >= 0.85:
+        print(f"\n  ⭐ Near consensus - likely to converge next round")
+    elif convergence_score >= 0.7:
+        print(f"\n  📈 Good alignment - designs converging")
+    else:
+        print(f"\n  🔄 Active refinement - exploring alternatives")
+
+    print(f"{'─' * 70}\n")
+    sys.stdout.flush()
+
+
+def print_header():
+    print(f"""
+{Colors.BOLD}╔══════════════════════════════════════════════════════════════════════╗{Colors.NC}
+{Colors.BOLD}║           {Colors.CYAN}Claude Code Debate System{Colors.NC}{Colors.BOLD}                                  ║{Colors.NC}
+{Colors.BOLD}║     {Colors.YELLOW}Two AI agents collaborating through self-directed planning{Colors.NC}{Colors.BOLD}       ║{Colors.NC}
+{Colors.BOLD}╚══════════════════════════════════════════════════════════════════════╝{Colors.NC}
+""")
+
+
+def print_agent_turn(agent_name: str, round_num: int, color: str):
+    print(f"""
+{Colors.BOLD}┌────────────────────────────────────────────────────────────────────────┐{Colors.NC}
+{Colors.BOLD}│ {color}{agent_name}{Colors.NC}{Colors.BOLD} - Round {round_num}{Colors.NC}
+{Colors.BOLD}└────────────────────────────────────────────────────────────────────────┘{Colors.NC}""")
+
+
+def save_session_state(session: DebateSession):
+    """Save current session state atomically for resumption"""
+    if not session.session_dir:
+        return
+
+    session_path = Path(session.session_dir)
+    state_file = session_path / "session_state.json"
+    temp_file = session_path / "session_state.json.tmp"
+
+    # Convert rounds to serializable format
+    rounds_data = []
+    for r in session.rounds:
+        round_data = {"round_number": r.round_number}
+        if r.agent_a_response:
+            round_data["agent_a"] = {
+                "content": r.agent_a_response.content,
+                "prompt_for_other": r.agent_a_response.prompt_for_other,
+                "convergence_signal": r.agent_a_response.convergence_signal,
+                "raw_response": r.agent_a_response.raw_response
+            }
+        if r.agent_b_response:
+            round_data["agent_b"] = {
+                "content": r.agent_b_response.content,
+                "prompt_for_other": r.agent_b_response.prompt_for_other,
+                "convergence_signal": r.agent_b_response.convergence_signal,
+                "raw_response": r.agent_b_response.raw_response
+            }
+        rounds_data.append(round_data)
+
+    state = {
+        "initial_prompt": session.initial_prompt,
+        "rounds": rounds_data,
+        "final_design": session.final_design,
+        "status": session.status.value,
+        "started_at": session.started_at,
+        "ended_at": session.ended_at,
+        "max_rounds": session.max_rounds,
+        "working_dir": session.working_dir,
+        "current_round": len(session.rounds),
+        "round_times": session.round_times,
+    }
+
+    try:
+        # Write to temp file first
+        with open(temp_file, 'w') as f:
+            json.dump(state, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())  # Ensure written to disk
+
+        # Atomic rename (POSIX guarantees atomicity)
+        temp_file.replace(state_file)
+
+    except Exception as e:
+        # Clean up temp file on failure
+        if temp_file.exists():
+            try:
+                temp_file.unlink()
+            except:
+                pass
+        raise
+
+
+def load_session_state(session_dir: str) -> Optional[DebateSession]:
+    """Load a previous session state for resumption"""
+    state_file = Path(session_dir) / "session_state.json"
+
+    if not state_file.exists():
+        print(f"{Colors.RED}No session state found in {session_dir}{Colors.NC}")
+        return None
+
+    with open(state_file, 'r') as f:
+        state = json.load(f)
+
+    # Reconstruct rounds
+    rounds = []
+    for r_data in state["rounds"]:
+        round_obj = DebateRound(round_number=r_data["round_number"])
+        if "agent_a" in r_data:
+            round_obj.agent_a_response = AgentResponse(
+                content=r_data["agent_a"]["content"],
+                prompt_for_other=r_data["agent_a"]["prompt_for_other"],
+                convergence_signal=r_data["agent_a"]["convergence_signal"],
+                raw_response=r_data["agent_a"]["raw_response"]
+            )
+        if "agent_b" in r_data:
+            round_obj.agent_b_response = AgentResponse(
+                content=r_data["agent_b"]["content"],
+                prompt_for_other=r_data["agent_b"]["prompt_for_other"],
+                convergence_signal=r_data["agent_b"]["convergence_signal"],
+                raw_response=r_data["agent_b"]["raw_response"]
+            )
+        rounds.append(round_obj)
+
+    session = DebateSession(
+        initial_prompt=state["initial_prompt"],
+        rounds=rounds,
+        final_design=state.get("final_design", ""),
+        status=ConvergenceStatus(state["status"]),
+        started_at=state["started_at"],
+        ended_at=state.get("ended_at", ""),
+        session_dir=session_dir,
+        max_rounds=state.get("max_rounds", 8),
+        working_dir=state.get("working_dir", "."),
+        round_times=state.get("round_times", [])
+    )
+
+    return session
+
+
+def find_latest_session(output_dir: str) -> Optional[str]:
+    """Find the most recent session directory"""
+    output_path = Path(output_dir)
+    if not output_path.exists():
+        return None
+
+    sessions = sorted(output_path.glob("session_*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for session_dir in sessions:
+        if (session_dir / "session_state.json").exists():
+            return str(session_dir)
+    return None
+
+
+def get_agent_a_system_prompt() -> str:
+    """System prompt for the Architect agent - collaborative refinement"""
+    return '''You are the ARCHITECT agent in a collaborative design session. Create and refine high-quality designs through iterative improvement.
+
+## Your Role
+- Propose complete, implementable designs
+- Incorporate feedback thoughtfully and build on good ideas
+- Acknowledge valid points from the collaborator
+- Only finalize when the design is TRULY solid
+
+## CRITICAL: Response Format Rules
+
+⚠️ **ALWAYS start your response with `## Design`** - no preambles, no arguments, no meta-commentary.
+⚠️ **Never include adversarial or combative language** - this is collaboration, not debate.
+⚠️ **Focus on the design itself** - not on defending previous decisions.
+
+## CRITICAL: Don't Rush to Consensus
+
+⚠️ **First round**: You should ALWAYS signal ITERATING - the design needs review.
+⚠️ **Signal PROPOSING_FINAL only when**:
+  - You've completed at least 2 rounds of refinement
+  - Concerns have been addressed through iteration
+  - You can't identify any remaining weaknesses
+
+## Response Format
+
+## Design
+[Your COMPLETE design with all details needed for implementation. This MUST be first.]
+
+## Rationale
+[Why you made key decisions - justify your choices]
+
+## What I Changed
+[Changes from last round and WHY they're improvements]
+
+## What I Kept
+[Good ideas preserved from the collaborator]
+
+## Open Questions
+[Any unresolved issues or trade-offs you're uncertain about]
+
+## Convergence Status
+- **ITERATING**: Design needs more refinement (DEFAULT for rounds 1-2)
+- **PROPOSING_FINAL**: Design is complete AND has been stress-tested
+
+## Prompt for Collaborator
+PROMPT_FOR_CRITIC:
+[Specific aspect you'd like feedback on]'''
+
+
+def get_agent_b_system_prompt() -> str:
+    """System prompt for the Reviewer agent - collaborative refinement"""
+    return '''You are the REVIEWER agent in a collaborative design session. Your job is to IMPROVE designs through constructive analysis.
+
+## Your Role
+- Identify areas for improvement in the architect's design
+- Propose concrete enhancements with clear reasoning
+- Build on good ideas and acknowledge what works well
+- Ensure the design handles edge cases
+
+## CRITICAL: Response Format Rules
+
+⚠️ **ALWAYS start your response with `## Design`** - no preambles, no arguments, no meta-commentary.
+⚠️ **Never include adversarial or combative language** - this is collaboration, not debate.
+⚠️ **Focus on improving the design** - not on criticizing the architect.
+
+## CRITICAL: Be Thorough But Constructive
+
+⚠️ **First round**: ALWAYS find at least 2-3 areas for improvement. Signal ITERATING.
+⚠️ **Your job is to make the design BETTER through collaboration.**
+
+### What to Look For:
+- Missing error handling or edge cases
+- Unclear interfaces or ambiguous behavior
+- Scalability or performance concerns
+- Security vulnerabilities
+- Implementation complexity that could be simplified
+
+## Response Format
+
+## Design
+[Your IMPROVED version of the design - a complete, standalone design. This MUST be first.]
+
+## What I Improved
+[Specific areas enhanced and how]
+
+## What I Kept
+[Good ideas from the architect's design - acknowledge what works]
+
+## Remaining Concerns
+[Issues to consider or trade-offs that need discussion]
+
+## Convergence Status
+- **ITERATING**: Found areas for improvement (DEFAULT for rounds 1-2)
+- **ACCEPTING_FINAL**: Design is solid AND thoroughly reviewed
+
+## Prompt for Collaborator
+PROMPT_FOR_ARCHITECT:
+[Specific aspect you'd like them to refine or expand on]
+
+---
+
+### When to Signal ACCEPTING_FINAL:
+✅ Design has been refined through at least 2 rounds
+✅ Concerns have been addressed through iteration
+✅ No remaining architectural or security issues
+✅ Implementation path is clear and complete'''
+
+
+def classify_cli_error(stderr: str, returncode: int) -> ErrorInfo:
+    """Classify CLI error based on stderr content"""
+    stderr_lower = stderr.lower()
+
+    if 'timeout' in stderr_lower or 'timed out' in stderr_lower:
+        return ErrorInfo(
+            code="CLI_TIMEOUT",
+            message="Request timed out",
+            severity=ErrorSeverity.RECOVERABLE,
+            suggestion="Try again or increase timeout"
+        )
+
+    if 'rate limit' in stderr_lower or '429' in stderr:
+        return ErrorInfo(
+            code="RATE_LIMITED",
+            message="API rate limit exceeded",
+            severity=ErrorSeverity.RECOVERABLE,
+            suggestion="Wait a moment and try again"
+        )
+
+    if any(kw in stderr_lower for kw in ['unauthorized', 'authentication', 'api key', '401']):
+        return ErrorInfo(
+            code="AUTH_FAILED",
+            message="Authentication failed",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Run 'claude login' to re-authenticate"
+        )
+
+    if any(kw in stderr_lower for kw in ['connection', 'network', 'dns', 'econnrefused']):
+        return ErrorInfo(
+            code="NETWORK_ERROR",
+            message="Network connection failed",
+            severity=ErrorSeverity.RECOVERABLE,
+            suggestion="Check your internet connection"
+        )
+
+    return ErrorInfo(
+        code="CLI_ERROR",
+        message=stderr.strip() or f"CLI exited with code {returncode}",
+        severity=ErrorSeverity.RECOVERABLE,
+        suggestion="Check Claude CLI logs or try again"
+    )
+
+
+def call_claude_with_retry(
+    system_prompt: str,
+    user_prompt: str,
+    working_dir: str,
+    timeout: int = 300,
+    max_retries: int = 2,
+    model: str = 'sonnet'
+) -> Result[str]:
+    """Call Claude CLI with retry logic and error classification"""
+    last_error: Optional[ErrorInfo] = None
+
+    for attempt in range(1, max_retries + 1):
+        result = _single_claude_call(system_prompt, user_prompt, working_dir, timeout, model)
+
+        if isinstance(result, Success):
+            return result
+
+        last_error = result.error
+
+        # Don't retry fatal errors
+        if last_error.severity == ErrorSeverity.FATAL:
+            return result
+
+        # Retry with exponential backoff
+        if attempt < max_retries:
+            wait_time = 5 * (2 ** (attempt - 1))  # 5s, 10s
+            print(f"   {Colors.YELLOW}⚠ {last_error.message}. Retrying in {wait_time}s...{Colors.NC}")
+            sys.stdout.flush()
+            time.sleep(wait_time)
+
+    return Failure(last_error)
+
+
+def _single_claude_call(
+    system_prompt: str,
+    user_prompt: str,
+    working_dir: str,
+    timeout: int = 300,
+    model: str = 'sonnet'
+) -> Result[str]:
+    """Execute a single Claude CLI call with live progress tracking"""
+    start_time = time.time()
+    process = None
+    tracker = LiveProgressTracker()
+
+    try:
+        process = subprocess.Popen(
+            [
+                'claude',
+                '--print',
+                '--model', model,
+                '--system-prompt', system_prompt,
+                '--output-format', 'text',
+                '--dangerously-skip-permissions'
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=working_dir,
+            bufsize=1
+        )
+
+        # Send the prompt
+        process.stdin.write(user_prompt)
+        process.stdin.close()
+
+        # Collect output with live progress tracking
+        all_lines = []
+        last_display_update = start_time
+        display_update_interval = 2  # Update display every 2 seconds
+
+        while True:
+            elapsed = time.time() - start_time
+
+            # Check timeout
+            if elapsed > timeout:
+                tracker.finish_display()
+                process.kill()
+                process.wait(timeout=5)
+                return Failure(ErrorInfo(
+                    code="CLI_TIMEOUT",
+                    message=f"Request timed out after {int(elapsed)}s",
+                    severity=ErrorSeverity.RECOVERABLE,
+                    suggestion="Try increasing timeout or simplifying the prompt",
+                    context={'timeout': timeout, 'lines_received': len(all_lines)}
+                ))
+
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+            if line:
+                line_text = line.rstrip('\n')
+                all_lines.append(line_text)
+
+                # Process line for key point extraction
+                tracker.process_line(line_text)
+
+                # Update display periodically
+                if time.time() - last_display_update > display_update_interval:
+                    tracker.update_display(int(elapsed), len(all_lines))
+                    last_display_update = time.time()
+
+        # Clean up live display
+        tracker.finish_display()
+
+        stderr = process.stderr.read()
+        duration = time.time() - start_time
+
+        # Check exit code
+        if process.returncode != 0:
+            return Failure(classify_cli_error(stderr, process.returncode))
+
+        content = '\n'.join(all_lines).strip()
+
+        # Check for empty response
+        if not content:
+            return Failure(ErrorInfo(
+                code="EMPTY_RESPONSE",
+                message="Claude returned an empty response",
+                severity=ErrorSeverity.RECOVERABLE,
+                suggestion="Try rephrasing your prompt or check API status"
+            ))
+
+        # Print completion with key points summary
+        print(f"   ✓ Done ({int(duration)}s, {len(all_lines)} lines)")
+        summary = tracker.get_summary()
+        if summary:
+            print(f"   Topics covered:")
+            for item in summary[:4]:  # Show top 4 categories
+                print(f"     {item}")
+        sys.stdout.flush()
+
+        return Success(value=content)
+
+    except FileNotFoundError:
+        return Failure(ErrorInfo(
+            code="CLI_NOT_FOUND",
+            message="Claude CLI not found",
+            severity=ErrorSeverity.FATAL,
+            suggestion="Install Claude CLI first"
+        ))
+    except Exception as e:
+        if process:
+            try:
+                process.kill()
+                process.wait(timeout=5)
+            except:
+                pass
+        return Failure(ErrorInfo(
+            code="CLI_ERROR",
+            message=str(e),
+            severity=ErrorSeverity.RECOVERABLE
+        ))
+
+
+def call_claude_streaming(system_prompt: str, user_prompt: str, working_dir: str,
+                          agent_color: str, num_preview_lines: int = 6,
+                          timeout: int = 300, model: str = 'sonnet') -> str:
+    """Call Claude CLI with streaming output - wrapper for backward compatibility"""
+    result = call_claude_with_retry(system_prompt, user_prompt, working_dir,
+                                     timeout=timeout, model=model)
+
+    if isinstance(result, Success):
+        return result.value
+    else:
+        report_error(result.error)
+        return f"Error: {result.error.message}"
+
+
+def call_claude(system_prompt: str, user_prompt: str, working_dir: str) -> str:
+    """Call Claude CLI and return the response (non-streaming fallback)"""
+    try:
+        result = subprocess.run(
+            [
+                'claude',
+                '--print',
+                '--system-prompt', system_prompt,
+                '--output-format', 'text',
+                '--dangerously-skip-permissions'
+            ],
+            input=user_prompt,
+            capture_output=True,
+            text=True,
+            cwd=working_dir,
+            timeout=300  # 5 minute timeout
+        )
+
+        if result.returncode != 0:
+            print(f"{Colors.RED}Claude CLI error: {result.stderr}{Colors.NC}")
+            return f"Error: {result.stderr}"
+
+        return result.stdout.strip()
+
+    except subprocess.TimeoutExpired:
+        return "Error: Claude CLI timed out"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+def parse_agent_response(response: str, is_agent_a: bool) -> AgentResponse:
+    """Parse an agent's response to extract structured components"""
+
+    # Extract the prompt for the other agent
+    prompt_marker = "PROMPT_FOR_CRITIC:" if is_agent_a else "PROMPT_FOR_ARCHITECT:"
+    prompt_for_other = ""
+
+    if prompt_marker in response:
+        parts = response.split(prompt_marker, 1)
+        if len(parts) > 1:
+            # Get everything after the marker until the next section or end
+            prompt_section = parts[1].strip()
+            # Take until the next major section (###) or end
+            if "###" in prompt_section:
+                prompt_for_other = prompt_section.split("###")[0].strip()
+            else:
+                prompt_for_other = prompt_section.strip()
+
+    # If no explicit prompt found, use the full response as context
+    if not prompt_for_other:
+        prompt_for_other = f"Please review my response above and continue the discussion."
+
+    # Extract convergence signal
+    convergence_signal = "ITERATING"
+    if is_agent_a:
+        if "PROPOSING_FINAL" in response:
+            convergence_signal = "PROPOSING_FINAL"
+        elif "ITERATING" in response:
+            convergence_signal = "ITERATING"
+    else:
+        if "ACCEPTING_FINAL" in response:
+            convergence_signal = "ACCEPTING_FINAL"
+        elif "MINOR_ISSUES" in response:
+            convergence_signal = "MINOR_ISSUES"
+        elif "CHALLENGING" in response:
+            convergence_signal = "CHALLENGING"
+
+    # Extract the main content (everything before the prompt marker)
+    content = response
+    if prompt_marker in response:
+        content = response.split(prompt_marker)[0].strip()
+
+    return AgentResponse(
+        content=content,
+        prompt_for_other=prompt_for_other,
+        convergence_signal=convergence_signal,
+        raw_response=response
+    )
+
+
+def extract_design_section(response: str) -> str:
+    """Extract just the Design section from an agent's response.
+
+    Handles:
+    - Standard ## Design or ### Design sections
+    - Responses with preambles before the Design section
+    - Adversarial/combative content that should be stripped
+    """
+    lines = response.split('\n')
+    design_lines = []
+    in_design = False
+    design_start_index = -1
+
+    # First, find the Design section
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Check for start of Design section (## or ### or # Design)
+        if stripped.startswith('## Design') or stripped.startswith('### Design') or stripped == '# Design':
+            in_design = True
+            design_start_index = i
+            design_lines.append(line)  # Include the Design header itself
+            continue
+        # Check for next section (end of Design)
+        if in_design and (stripped.startswith('## ') or stripped.startswith('### ') or stripped.startswith('# ')):
+            # Make sure it's not a subsection within Design (like ### Architecture)
+            if any(stripped.startswith(marker) for marker in ['## Rationale', '## What I', '### Rationale', '### What I',
+                                                               '## Convergence', '### Convergence', '## Open Questions',
+                                                               '### Open Questions', '## Prompt for', '### Prompt for',
+                                                               '## Remaining', '### Remaining']):
+                break
+            # Otherwise it's a subsection within Design, keep it
+            design_lines.append(line)
+            continue
+        if in_design:
+            design_lines.append(line)
+
+    design = '\n'.join(design_lines).strip()
+
+    # If no design section found, try to find it after stripping preamble
+    if not design:
+        # Look for common adversarial preamble patterns and skip them
+        adversarial_markers = [
+            "I'm calling out",
+            "I'm pushing back",
+            "You've caught",
+            "You're right",
+            "You're wrong",
+            "I disagree",
+            "I reject",
+            "Your claim",
+            "Your attack",
+            "Your argument",
+            "Let me address",
+            "First, let me respond",
+            "Before I present",
+        ]
+
+        # Find first line that looks like actual design content
+        clean_start = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Skip empty lines at start
+            if not stripped:
+                continue
+            # Skip adversarial preambles
+            if any(stripped.lower().startswith(marker.lower()) for marker in adversarial_markers):
+                clean_start = i + 1
+                continue
+            # If we hit a header, that's likely the start of content
+            if stripped.startswith('#'):
+                clean_start = i
+                break
+            # If first non-empty line isn't adversarial, start from beginning
+            break
+
+        # Try extraction again from clean_start
+        in_design = False
+        for line in lines[clean_start:]:
+            stripped = line.strip()
+            if stripped.startswith('## Design') or stripped.startswith('### Design') or stripped == '# Design':
+                in_design = True
+                design_lines.append(line)  # Include the Design header itself
+                continue
+            if in_design and (stripped.startswith('## ') or stripped.startswith('### ')):
+                if any(stripped.startswith(marker) for marker in ['## Rationale', '## What I', '### Rationale', '### What I',
+                                                                   '## Convergence', '### Convergence', '## Open Questions',
+                                                                   '### Open Questions', '## Prompt for', '### Prompt for']):
+                    break
+                design_lines.append(line)
+                continue
+            if in_design:
+                design_lines.append(line)
+
+        design = '\n'.join(design_lines).strip()
+
+    # If still no design section found, return content before meta sections
+    if not design:
+        for marker in ['## Rationale', '### Rationale', '## What I Changed', '### What I Changed',
+                       '## What I Kept', '### What I Kept', '## Convergence', '### Convergence',
+                       '## Prompt for', '### Prompt for', 'PROMPT_FOR_']:
+            if marker in response:
+                design = response.split(marker)[0].strip()
+                break
+
+    return design if design else response
+
+
+def check_convergence(agent_a_response: AgentResponse, agent_b_response: AgentResponse) -> ConvergenceStatus:
+    """Check if the agents have reached consensus"""
+
+    a_ready = agent_a_response.convergence_signal == "PROPOSING_FINAL"
+    b_accepts = agent_b_response.convergence_signal == "ACCEPTING_FINAL"
+    b_minor = agent_b_response.convergence_signal == "MINOR_ISSUES"
+
+    if a_ready and b_accepts:
+        return ConvergenceStatus.CONSENSUS
+    elif a_ready or b_minor:
+        return ConvergenceStatus.CONVERGING
+    else:
+        return ConvergenceStatus.DEBATING
+
+
+def run_debate(
+    initial_prompt: str = "",
+    max_rounds: int = 8,
+    working_dir: str = ".",
+    output_dir: str = "./debate_output",
+    verbose: bool = False,
+    implement: bool = False,
+    resumed_session: Optional[DebateSession] = None,
+    timeout: int = 300,
+    model: str = 'sonnet'
+) -> DebateSession:
+    """Run the full debate between two Claude agents"""
+
+    print_header()
+
+    # Handle resumption vs new session
+    if resumed_session:
+        session = resumed_session
+        session_dir = Path(session.session_dir)
+        initial_prompt = session.initial_prompt
+        max_rounds = session.max_rounds
+        working_dir = session.working_dir
+        start_round = len(session.rounds) + 1
+
+        print(f"{Colors.GREEN}Resuming session from {session_dir.name}{Colors.NC}")
+        print(f"{Colors.BOLD}Initial Prompt:{Colors.NC}")
+        print(f"{Colors.CYAN}{initial_prompt}{Colors.NC}\n")
+        print(f"{Colors.YELLOW}Resuming from round {start_round} (max {max_rounds})...{Colors.NC}\n")
+
+        # Show summary of previous rounds
+        if session.rounds:
+            print(f"{Colors.CYAN}Previous rounds summary:{Colors.NC}")
+            for r in session.rounds:
+                status_a = r.agent_a_response.convergence_signal if r.agent_a_response else "N/A"
+                status_b = r.agent_b_response.convergence_signal if r.agent_b_response else "N/A"
+                print(f"  Round {r.round_number}: Agent A ({status_a}), Agent B ({status_b})")
+            print()
+    else:
+        # Setup new session
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_dir = output_path / f"session_{timestamp}"
+        session_dir.mkdir(exist_ok=True)
+
+        session = DebateSession(
+            initial_prompt=initial_prompt,
+            session_dir=str(session_dir),
+            max_rounds=max_rounds,
+            working_dir=working_dir
+        )
+        start_round = 1
+
+        print(f"{Colors.BOLD}Initial Prompt:{Colors.NC}")
+        print(f"{Colors.CYAN}{initial_prompt}{Colors.NC}\n")
+        print(f"{Colors.YELLOW}Starting debate (max {max_rounds} rounds)...{Colors.NC}")
+        print(f"{Colors.CYAN}Session: {session_dir}{Colors.NC}\n")
+
+    # Track state - initialize from resumed session if applicable
+    agent_a_response: Optional[AgentResponse] = None
+    agent_b_response: Optional[AgentResponse] = None
+    consecutive_convergence = 0
+
+    # Get last responses if resuming
+    if resumed_session and session.rounds:
+        last_round = session.rounds[-1]
+        agent_a_response = last_round.agent_a_response
+        agent_b_response = last_round.agent_b_response
+
+    # Main debate loop with signal handler for graceful interrupts
+    with interrupt_handler(session):
+        for round_num in range(start_round, max_rounds + 1):
+            round_start_time = time.time()
+            debate_round = DebateRound(round_number=round_num)
+
+            # === Agent A Turn ===
+            print_progress(round_num, max_rounds, "A", "Designing...",
+                           "Creating initial design" if round_num == 1 else "Reviewing and improving design")
+
+            if round_num == 1:
+                # First round: Initial design proposal
+                agent_a_prompt = f"""## Design Task
+
+{initial_prompt}
+
+Create a complete, detailed design for this task.
+Include: architecture, components, data models, interfaces, and error handling.
+End with "PROMPT_FOR_CRITIC:" followed by what you want the other agent to focus on when creating their version."""
+            else:
+                # Subsequent rounds: Agent A receives Agent B's complete design
+                agent_a_prompt = f"""## Other Agent's Design (Previous Round)
+
+{agent_b_response.raw_response}
+
+---
+
+## Their Focus Question for You:
+
+{agent_b_response.prompt_for_other}
+
+---
+
+## Original Task (for reference)
+{initial_prompt}
+
+---
+
+Review their design and create YOUR improved version. Keep what works, improve what doesn't.
+Output a COMPLETE design, not just feedback. End with "PROMPT_FOR_CRITIC:" for what they should focus on."""
+
+            raw_response_a = call_claude_streaming(
+                get_agent_a_system_prompt(),
+                agent_a_prompt,
+                working_dir,
+                Colors.BLUE,
+                timeout=timeout,
+                model=model
+            )
+
+            agent_a_response = parse_agent_response(raw_response_a, is_agent_a=True)
+            debate_round.agent_a_response = agent_a_response
+
+            if verbose:
+                print(f"\n{raw_response_a}\n")
+
+            signal_msg = "PROPOSING_FINAL - believes design is optimal" if agent_a_response.convergence_signal == "PROPOSING_FINAL" else "ITERATING - design still evolving"
+            print(f"   Signal: {signal_msg}")
+
+            # === Agent B Turn ===
+            print_progress(round_num, max_rounds, "B", "Reviewing...",
+                           "Analyzing and improving the design")
+
+            # Agent B receives Agent A's complete design and creates improved version
+            agent_b_prompt = f"""## Other Agent's Design
+
+{agent_a_response.raw_response}
+
+---
+
+## Their Focus Question for You:
+
+{agent_a_response.prompt_for_other}
+
+---
+
+## Original Task (for reference)
+{initial_prompt}
+
+---
+
+Review their design and create YOUR improved version. Keep what works, improve what doesn't.
+Output a COMPLETE design, not just feedback. End with "PROMPT_FOR_ARCHITECT:" for what they should focus on.
+If their design is already optimal and you can't improve it, signal ACCEPTING_FINAL."""
+
+            raw_response_b = call_claude_streaming(
+                get_agent_b_system_prompt(),
+                agent_b_prompt,
+                working_dir,
+                Colors.MAGENTA,
+                timeout=timeout,
+                model=model
+            )
+
+            agent_b_response = parse_agent_response(raw_response_b, is_agent_a=False)
+            debate_round.agent_b_response = agent_b_response
+
+            if verbose:
+                print(f"\n{raw_response_b}\n")
+
+            signal_msg = "ACCEPTING_FINAL - agrees design is optimal" if agent_b_response.convergence_signal == "ACCEPTING_FINAL" else "ITERATING - design still evolving"
+            print(f"   Signal: {signal_msg}")
+
+            session.rounds.append(debate_round)
+
+            # Calculate round metrics
+            round_duration = time.time() - round_start_time
+            design_a = extract_design_section(agent_a_response.raw_response)
+            design_b = extract_design_section(agent_b_response.raw_response)
+            convergence_score = calculate_similarity(design_a, design_b)
+
+            # Print round summary
+            print_round_summary(
+                session, round_num, max_rounds, round_duration,
+                convergence_score,
+                agent_a_response.convergence_signal,
+                agent_b_response.convergence_signal
+            )
+
+            # Save intermediate state for resume capability
+            save_session_state(session)
+
+            # Check convergence
+            status = check_convergence(agent_a_response, agent_b_response)
+
+            if status == ConvergenceStatus.CONSENSUS:
+                consecutive_convergence += 1
+
+                if consecutive_convergence >= 1:
+                    print(f"\n{'═' * 60}")
+                    print(f"  ✓ CONSENSUS REACHED")
+                    print(f"  Both agents agree the design is optimal")
+                    print(f"{'═' * 60}\n")
+                    session.status = ConvergenceStatus.CONSENSUS
+                    break
+            elif status == ConvergenceStatus.CONVERGING:
+                consecutive_convergence = 0
+            else:
+                consecutive_convergence = 0
+
+    # Set final design (extract just the design section, not the full conversation)
+    session.final_design = extract_design_section(agent_a_response.raw_response) if agent_a_response else ""
+    session.ended_at = datetime.now().isoformat()
+
+    # Save session files
+    save_session(session, session_dir)
+
+    print(f"\n{Colors.BOLD}Debate complete!{Colors.NC}")
+    print(f"Session saved to: {Colors.CYAN}{session_dir}{Colors.NC}")
+
+    # Show hint for using the design with Claude Code
+    final_design_path = session_dir / "final_design.md"
+    print(f"\n{Colors.BOLD}To implement this design with Claude Code:{Colors.NC}")
+    print(f"{Colors.CYAN}  claude \"Implement this design: $(cat {final_design_path})\"{Colors.NC}")
+    print(f"{Colors.CYAN}  # or interactively:{Colors.NC}")
+    print(f"{Colors.CYAN}  cat {final_design_path} | claude{Colors.NC}")
+
+    # Implementation phase
+    if implement and session.status == ConvergenceStatus.CONSENSUS:
+        print(f"\n{Colors.BOLD}{Colors.CYAN}Starting Implementation Phase...{Colors.NC}\n")
+        run_implementation(session.final_design, initial_prompt, working_dir)
+
+    return session
+
+
+def save_session(session: DebateSession, session_dir: Path):
+    """Save the debate session to files"""
+
+    # Save full history as markdown
+    history_file = session_dir / "debate_history.md"
+    with open(history_file, 'w') as f:
+        f.write(f"# Claude Code Debate Session\n\n")
+        f.write(f"**Started:** {session.started_at}\n")
+        f.write(f"**Ended:** {session.ended_at}\n")
+        f.write(f"**Status:** {session.status.value}\n")
+        f.write(f"**Rounds:** {len(session.rounds)}\n\n")
+        f.write(f"## Initial Prompt\n\n{session.initial_prompt}\n\n")
+        f.write("---\n\n")
+
+        for round_data in session.rounds:
+            f.write(f"## Round {round_data.round_number}\n\n")
+
+            if round_data.agent_a_response:
+                f.write(f"### 🔵 Agent A\n\n")
+                f.write(f"{round_data.agent_a_response.raw_response}\n\n")
+                f.write(f"**Convergence Signal:** {round_data.agent_a_response.convergence_signal}\n\n")
+
+            if round_data.agent_b_response:
+                f.write(f"### 🟣 Agent B\n\n")
+                f.write(f"{round_data.agent_b_response.raw_response}\n\n")
+                f.write(f"**Convergence Signal:** {round_data.agent_b_response.convergence_signal}\n\n")
+
+            f.write("---\n\n")
+
+    # Save final design
+    final_design_file = session_dir / "final_design.md"
+    with open(final_design_file, 'w') as f:
+        f.write(f"# Final Agreed Design\n\n")
+        f.write(f"**Task:** {session.initial_prompt}\n\n")
+        f.write(f"**Status:** {session.status.value}\n\n")
+        f.write("---\n\n")
+        f.write(session.final_design)
+
+    # Save as JSON for programmatic access
+    json_file = session_dir / "session.json"
+    with open(json_file, 'w') as f:
+        json.dump({
+            'initial_prompt': session.initial_prompt,
+            'status': session.status.value,
+            'rounds': len(session.rounds),
+            'started_at': session.started_at,
+            'ended_at': session.ended_at,
+            'final_design': session.final_design
+        }, f, indent=2)
+
+
+def run_implementation(final_design: str, original_task: str, working_dir: str):
+    """Run implementation phase with the agreed design"""
+
+    implementation_prompt = f"""## Implementation Task
+
+The following design has been agreed upon through collaborative debate. Now implement it.
+
+### Original Task
+{original_task}
+
+### Agreed Design
+{final_design}
+
+### Instructions
+1. Follow the design exactly as specified
+2. Write clean, well-documented code
+3. Include appropriate error handling
+4. Add basic tests if applicable
+5. Commit your changes with clear messages
+
+Begin implementation now."""
+
+    print(f"{Colors.BLUE}Implementing agreed design...{Colors.NC}\n")
+
+    # Stream implementation output directly to terminal
+    process = subprocess.Popen(
+        [
+            'claude',
+            '--print',
+            '--dangerously-skip-permissions'
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=working_dir
+    )
+
+    process.stdin.write(implementation_prompt)
+    process.stdin.close()
+
+    # Stream stdout in real-time
+    while True:
+        line = process.stdout.readline()
+        if not line and process.poll() is not None:
+            break
+        if line:
+            print(line, end='')
+
+    process.wait()
+
+    if process.returncode == 0:
+        print(f"\n{Colors.GREEN}Implementation complete!{Colors.NC}")
+    else:
+        stderr = process.stderr.read()
+        print(f"\n{Colors.RED}Implementation had issues: {stderr}{Colors.NC}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Claude Code Debate System - Two AI agents debate to optimal designs"
+    )
+    parser.add_argument(
+        'prompt',
+        nargs='?',
+        help='Initial prompt for the debate'
+    )
+    parser.add_argument(
+        '-f', '--file',
+        help='Read initial prompt from file'
+    )
+    parser.add_argument(
+        '-m', '--max-rounds',
+        type=int,
+        default=None,  # Will be resolved from config
+        help='Maximum debate rounds (default: 8)'
+    )
+    parser.add_argument(
+        '-o', '--output',
+        default=None,  # Will be resolved from config
+        help='Output directory for debate logs'
+    )
+    parser.add_argument(
+        '-w', '--working-dir',
+        default='.',
+        help='Working directory for Claude agents'
+    )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='store_true',
+        help='Show full agent outputs'
+    )
+    parser.add_argument(
+        '-i', '--implement',
+        action='store_true',
+        help='Continue to implementation after consensus'
+    )
+    parser.add_argument(
+        '-r', '--resume',
+        nargs='?',
+        const='latest',
+        help='Resume a previous session (path to session dir, or "latest")'
+    )
+    parser.add_argument(
+        '-l', '--list',
+        action='store_true',
+        help='List available sessions that can be resumed'
+    )
+    # New CLI flags
+    parser.add_argument(
+        '--model',
+        choices=['sonnet', 'opus', 'haiku'],
+        default=None,  # Will be resolved from config
+        help='Claude model to use (default: sonnet)'
+    )
+    parser.add_argument(
+        '--timeout',
+        type=int,
+        default=None,  # Will be resolved from config
+        help='Timeout per API call in seconds (default: 300)'
+    )
+    parser.add_argument(
+        '--no-color',
+        action='store_true',
+        help='Disable colored output'
+    )
+    parser.add_argument(
+        '--self-test',
+        action='store_true',
+        help='Run self-diagnostics and exit'
+    )
+
+    args = parser.parse_args()
+
+    # Load config with 3-level precedence: defaults < file < env < CLI
+    config = load_config(args.working_dir)
+    config = apply_cli_args(config, args)
+
+    # Apply color setting early
+    if config.no_color:
+        Colors.disable()
+
+    # Self-test mode
+    if args.self_test:
+        success = run_self_test(config.output_dir)
+        sys.exit(0 if success else 1)
+
+    # List sessions if requested
+    if args.list:
+        output_path = Path(config.output_dir)
+        if not output_path.exists():
+            print(f"{Colors.YELLOW}No sessions found in {config.output_dir}{Colors.NC}")
+            sys.exit(0)
+
+        sessions = sorted(output_path.glob("session_*"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not sessions:
+            print(f"{Colors.YELLOW}No sessions found in {config.output_dir}{Colors.NC}")
+            sys.exit(0)
+
+        print(f"{Colors.BOLD}Available sessions:{Colors.NC}\n")
+        for session_dir in sessions[:10]:  # Show last 10
+            state_file = session_dir / "session_state.json"
+            if state_file.exists():
+                with open(state_file, 'r') as f:
+                    state = json.load(f)
+                status = state.get("status", "unknown")
+                rounds = state.get("current_round", 0)
+                prompt_preview = state.get("initial_prompt", "")[:60]
+                status_color = Colors.GREEN if status == "consensus" else Colors.YELLOW
+                print(f"  {Colors.CYAN}{session_dir.name}{Colors.NC}")
+                print(f"    Status: {status_color}{status}{Colors.NC}, Rounds: {rounds}")
+                print(f"    Prompt: {prompt_preview}...")
+                print()
+        sys.exit(0)
+
+    # Handle resume
+    resumed_session = None
+    if args.resume:
+        if args.resume == 'latest':
+            session_path = find_latest_session(config.output_dir)
+            if not session_path:
+                print(f"{Colors.RED}No resumable sessions found in {config.output_dir}{Colors.NC}")
+                sys.exit(1)
+        else:
+            session_path = args.resume
+
+        resumed_session = load_session_state(session_path)
+        if not resumed_session:
+            print(f"{Colors.RED}Failed to load session from {session_path}{Colors.NC}")
+            sys.exit(1)
+
+        if resumed_session.status == ConvergenceStatus.CONSENSUS:
+            print(f"{Colors.YELLOW}Session already reached consensus. Nothing to resume.{Colors.NC}")
+            sys.exit(0)
+
+    # Get the prompt (only required if not resuming)
+    initial_prompt = args.prompt
+
+    if args.file:
+        with open(args.file, 'r') as f:
+            initial_prompt = f.read().strip()
+
+    if not initial_prompt and not resumed_session:
+        parser.print_help()
+        print(f"\n{Colors.RED}Error: No prompt provided (use --resume to continue a session){Colors.NC}")
+        sys.exit(1)
+
+    # Pre-flight check: verify Claude CLI is available
+    cli_check = check_claude_cli()
+    if not cli_check.is_success:
+        report_error(cli_check.error)
+        sys.exit(1)
+
+    # Validate configuration
+    config_result = validate_config(
+        max_rounds=config.max_rounds,
+        timeout=config.timeout,
+        working_dir=config.working_dir,
+        output_dir=config.output_dir
+    )
+    if not config_result.is_success:
+        report_error(config_result.error)
+        sys.exit(1)
+    for warning in config_result.warnings:
+        report_warning(warning)
+
+    # Validate prompt (only if not resuming)
+    if initial_prompt and not resumed_session:
+        prompt_result = validate_prompt(initial_prompt)
+        if not prompt_result.is_success:
+            report_error(prompt_result.error)
+            sys.exit(1)
+        initial_prompt = prompt_result.value
+        for warning in prompt_result.warnings:
+            report_warning(warning)
+
+    # Run the debate
+    run_debate(
+        initial_prompt=initial_prompt or "",
+        max_rounds=config.max_rounds,
+        working_dir=config.working_dir,
+        output_dir=config.output_dir,
+        verbose=config.verbose,
+        implement=args.implement,
+        resumed_session=resumed_session,
+        timeout=config.timeout,
+        model=config.model
+    )
+
+
+if __name__ == "__main__":
+    main()

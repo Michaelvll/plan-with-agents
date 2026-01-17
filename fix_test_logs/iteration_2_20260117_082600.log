@@ -1,0 +1,82 @@
+
+╔══════════════════════════════════════════════════════════════════════╗
+║           Claude Code Debate System                                  ║
+║     Two AI agents collaborating through self-directed planning       ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Initial Prompt:
+Design a simple caching layer with TTL support
+
+Starting debate (max 3 rounds)...
+Session: debate_output/session_20260117_083600
+
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/3 (0%)
+🔵 Agent A (Architect): Designing...
+   → Creating initial design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (42s, 403 lines)
+   Signal: ITERATING - design still evolving
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/3 (0%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (74s, 794 lines)
+   Signal: ITERATING - design still evolving
+
+──────────────────────────────────────────────────────────────────────
+  📊 Round 1/3 Summary
+──────────────────────────────────────────────────────────────────────
+  ⏱️  Duration: 1m 56s (avg: 117s/round)
+  📈 Similarity: [█████░░░░░] 59%
+  ⏳ Est. remaining: 3m 53s (2 rounds)
+
+  Architect: 🔄 ITERATING
+  Reviewer:  🔄 ITERATING
+
+  🔄 Active refinement - exploring alternatives
+──────────────────────────────────────────────────────────────────────
+
+
+[██████░░░░░░░░░░░░░░] Round 2/3 (33%)
+🔵 Agent A (Architect): Designing...
+   → Reviewing and improving design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (112s, 1088 lines)
+   Signal: PROPOSING_FINAL - believes design is optimal
+
+[██████░░░░░░░░░░░░░░] Round 2/3 (33%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (133s, 1189 lines)
+   Signal: ACCEPTING_FINAL - agrees design is optimal
+
+──────────────────────────────────────────────────────────────────────
+  📊 Round 2/3 Summary
+──────────────────────────────────────────────────────────────────────
+  ⏱️  Duration: 4m 6s (avg: 181s/round)
+  📈 Similarity: [████████░░] 88%
+  ⏳ Est. remaining: 3m 1s (1 round)
+
+  Architect: ✅ PROPOSING_FINAL
+  Reviewer:  ✅ ACCEPTING_FINAL
+
+  🎉 CONSENSUS REACHED!
+──────────────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════
+  ✓ CONSENSUS REACHED
+  Both agents agree the design is optimal
+════════════════════════════════════════════════════════════
+
+
+Debate complete!
+Session saved to: debate_output/session_20260117_083600
+
+To implement this design with Claude Code:
+  claude "Implement this design: $(cat debate_output/session_20260117_083600/final_design.md)"
+  # or interactively:
+  cat debate_output/session_20260117_083600/final_design.md | claude

@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Design a simple user authentication API with login and logout endpoints",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T03:19:46.592496",
+  "ended_at": "",
+  "max_rounds": 3,
+  "working_dir": ".",
+  "current_round": 0,
+  "round_times": []
+}

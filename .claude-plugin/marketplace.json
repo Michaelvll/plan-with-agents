@@ -1,0 +1,29 @@
+{
+  "name": "plan-with-agents",
+  "owner": {
+    "name": "Zongheng Wu"
+  },
+  "metadata": {
+    "description": "Multi-turn planning system for creating high-quality implementation designs through iterative agent collaboration"
+  },
+  "plugins": [
+    {
+      "name": "plan-with-agents",
+      "source": ".",
+      "description": "Two AI agents (Architect and Reviewer) collaborate through iterative refinement until consensus on optimal design",
+      "version": "1.1.0",
+      "keywords": [
+        "planning",
+        "design",
+        "architecture",
+        "multi-agent",
+        "consensus",
+        "implementation",
+        "iterative",
+        "collaboration"
+      ],
+      "category": "Development workflows",
+      "repository": "https://github.com/michaelvll/plan-with-agents"
+    }
+  ]
+}

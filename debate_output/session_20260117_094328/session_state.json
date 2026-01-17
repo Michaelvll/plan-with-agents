@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Design a shopping cart API with inventory management",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T09:43:28.212644",
+  "ended_at": "",
+  "max_rounds": 2,
+  "working_dir": ".",
+  "current_round": 0,
+  "round_times": []
+}

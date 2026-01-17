@@ -1,0 +1,8 @@
+Design REST API for user profile endpoint with rate limiting
+
+Requirements:
+- CRUD operations for user profiles
+- Rate limiting to prevent abuse
+- Proper error handling and status codes
+- Pagination for list operations
+- Authentication required

@@ -1,0 +1,20 @@
+
+╔══════════════════════════════════════════════════════════════════════╗
+║           Claude Code Debate System                                  ║
+║     Two AI agents collaborating through self-directed planning       ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Initial Prompt:
+Design a REST API for a todo list application with user authentication
+
+Starting debate (max 3 rounds)...
+Session: debate_output/session_20260117_081958
+
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/3 (0%)
+🔵 Agent A (Architect): Designing...
+   → Creating initial design
+
+⚠ Received SIGTERM! Saving session...
+✓ Session saved to debate_output/session_20260117_081958
+Resume with: debate --resume debate_output/session_20260117_081958

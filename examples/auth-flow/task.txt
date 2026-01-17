@@ -1,0 +1,8 @@
+Design authentication system with JWT refresh tokens
+
+Requirements:
+- Secure login flow with JWT tokens
+- Refresh token mechanism for session extension
+- Token revocation capability
+- Protection against common attacks (CSRF, XSS, replay)
+- Support for multiple devices/sessions

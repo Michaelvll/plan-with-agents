@@ -1,0 +1,57 @@
+
+╔══════════════════════════════════════════════════════════════════════╗
+║           Claude Code Debate System                                  ║
+║     Two AI agents collaborating through self-directed planning       ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Initial Prompt:
+Design a rate limiting system using token bucket algorithm
+
+Starting debate (max 2 rounds)...
+Session: debate_output/session_20260117_084915
+
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/2 (0%)
+🔵 Agent A (Architect): Designing...
+   → Creating initial design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (56s, 465 lines)
+   Signal: ITERATING - design still evolving
+
+[░░░░░░░░░░░░░░░░░░░░] Round 1/2 (0%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (159s, 1361 lines)
+   Signal: ITERATING - design still evolving
+
+──────────────────────────────────────────────────────────────────────
+  📊 Round 1/2 Summary
+──────────────────────────────────────────────────────────────────────
+  ⏱️  Duration: 3m 35s (avg: 216s/round)
+  📈 Similarity: [███░░░░░░░] 30%
+  ⏳ Est. remaining: 3m 35s (1 round)
+
+  Architect: 🔄 ITERATING
+  Reviewer:  🔄 ITERATING
+
+  🔄 Active refinement - exploring alternatives
+──────────────────────────────────────────────────────────────────────
+
+
+[██████████░░░░░░░░░░] Round 2/2 (50%)
+🔵 Agent A (Architect): Designing...
+   → Reviewing and improving design
+   ⏱️  0s | 1 lines | Section: Starting
+[1A[J   ✓ Done (125s, 1103 lines)
+   Signal: PROPOSING_FINAL - believes design is optimal
+
+[██████████░░░░░░░░░░] Round 2/2 (50%)
+🟣 Agent B (Reviewer): Reviewing...
+   → Analyzing and improving the design
+
+⚠ Received SIGTERM! Saving session...
+
+⚠ Received SIGTERM! Saving session...
+✓ Session saved to debate_output/session_20260117_084915
+Resume with: debate --resume debate_output/session_20260117_084915

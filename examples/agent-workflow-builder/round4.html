@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Agent Workflow Builder - Round 4 (Production)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a12; color: #eee; }
+
+    .container { display: flex; height: 100vh; flex-direction: column; }
+
+    /* Top Bar */
+    .topbar { height: 52px; background: linear-gradient(90deg, #12121f 0%, #1a1a2e 100%); border-bottom: 1px solid rgba(59, 130, 246, 0.15); display: flex; align-items: center; padding: 0 20px; gap: 20px; }
+    .topbar-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .topbar-title svg { width: 18px; height: 18px; color: #3b82f6; }
+    .topbar-status { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #6b7280; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+    .topbar-btn { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); color: #eee; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .topbar-btn:hover { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4); }
+    .topbar-btn svg { width: 14px; height: 14px; }
+    .checkpoint-indicator { background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1)); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+    .checkpoint-indicator svg { width: 14px; height: 14px; animation: spin 2s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar { width: 240px; background: linear-gradient(180deg, #12121f 0%, #0d0d18 100%); border-right: 1px solid rgba(59, 130, 246, 0.1); display: flex; flex-direction: column; }
+    .sidebar-section { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .sidebar-section h3 { font-size: 10px; color: #4b5563; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
+
+    .node-type { background: rgba(59, 130, 246, 0.05); padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; cursor: grab; font-size: 12px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(59, 130, 246, 0.08); transition: all 0.2s; }
+    .node-type:hover { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.25); transform: translateX(4px); }
+    .node-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; }
+    .node-type-info { flex: 1; }
+    .node-type-name { font-weight: 600; margin-bottom: 2px; }
+    .node-type-desc { font-size: 10px; color: #6b7280; }
+
+    /* Storage Indicators */
+    .storage-panel { padding: 16px; }
+    .storage-tier { margin-bottom: 14px; }
+    .storage-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 11px; }
+    .storage-header .label { color: #6b7280; display: flex; align-items: center; gap: 6px; }
+    .storage-header .label svg { width: 12px; height: 12px; }
+    .storage-header .value { color: #10b981; font-weight: 600; font-family: 'SF Mono', Monaco, monospace; }
+    .storage-bar { height: 6px; background: rgba(59, 130, 246, 0.1); border-radius: 3px; overflow: hidden; }
+    .storage-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); border-radius: 3px; transition: width 0.5s ease; }
+
+    /* Canvas */
+    .canvas-container { flex: 1; display: flex; flex-direction: column; }
+    .canvas { flex: 1; position: relative; overflow: hidden;
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 24px 24px, 24px 24px;
+    }
+
+    /* Nodes - Enhanced */
+    .node { position: absolute; width: 220px; background: linear-gradient(180deg, #1a1a2e 0%, #12121f 100%); border: 2px solid rgba(59, 130, 246, 0.15); border-radius: 14px; cursor: move; box-shadow: 0 10px 40px rgba(0,0,0,0.4); transition: all 0.2s; }
+    .node.selected { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15), 0 10px 40px rgba(59,130,246,0.2); }
+    .node.running { border-color: #3b82f6; }
+    .node.success { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.15), 0 10px 40px rgba(16,185,129,0.15); }
+
+    .node-header { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; }
+    .node .node-icon { width: 32px; height: 32px; font-size: 12px; border-radius: 8px; }
+    .node-title { font-size: 13px; font-weight: 600; flex: 1; }
+    .node-status { display: flex; align-items: center; gap: 5px; font-size: 10px; padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,0.3); }
+    .node-status.running { color: #3b82f6; }
+    .node-status.success { color: #10b981; }
+    .node-status svg { width: 10px; height: 10px; }
+
+    .node-body { padding: 12px 14px; }
+    .node-config { font-size: 10px; color: #6b7280; display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .config-badge { background: rgba(59, 130, 246, 0.1); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.15); }
+
+    /* Stream indicator */
+    .stream-indicator { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #3b82f6; padding: 8px 0 0 0; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; }
+    .stream-bar { flex: 1; height: 4px; background: rgba(59, 130, 246, 0.15); border-radius: 2px; overflow: hidden; }
+    .stream-progress { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 2px; animation: stream 1.5s ease-in-out infinite; }
+    @keyframes stream { 0% { width: 0%; opacity: 0.5; } 50% { width: 80%; opacity: 1; } 100% { width: 100%; opacity: 0.5; } }
+
+    /* Checkpoint badge */
+    .checkpoint-badge { position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 9px; padding: 4px 8px; border-radius: 6px; font-weight: 600; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); }
+    .checkpoint-badge svg { width: 10px; height: 10px; }
+
+    .handle { position: absolute; width: 14px; height: 14px; background: #3b82f6; border: 3px solid #0a0a12; border-radius: 50%; transition: all 0.2s; }
+    .handle:hover { transform: scale(1.3); box-shadow: 0 0 12px rgba(59, 130, 246, 0.7); }
+    .handle-left { left: -8px; top: 50%; transform: translateY(-50%); }
+    .handle-right { right: -8px; top: 50%; transform: translateY(-50%); }
+
+    /* Animated connections */
+    .connection { position: absolute; pointer-events: none; }
+    .connection path { fill: none; stroke: url(#connGradient); stroke-width: 3; stroke-linecap: round; }
+    .connection path.animated { stroke-dasharray: 8 4; animation: dash 0.8s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -12; } }
+
+    /* Execution Panel */
+    .execution-panel { height: 180px; background: linear-gradient(180deg, #12121f 0%, #0d0d18 100%); border-top: 1px solid rgba(59, 130, 246, 0.1); display: flex; }
+    .logs-panel { flex: 1; display: flex; flex-direction: column; }
+    .logs-header { padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.03); display: flex; align-items: center; gap: 16px; }
+    .logs-header h4 { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .logs-header h4 svg { width: 14px; height: 14px; color: #6b7280; }
+    .logs-tabs { display: flex; gap: 4px; }
+    .logs-tab { background: none; border: none; color: #4b5563; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; transition: all 0.2s; }
+    .logs-tab:hover { color: #9ca3af; }
+    .logs-tab.active { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .logs-content { flex: 1; overflow-y: auto; padding: 10px 16px; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 11px; }
+    .log-line { display: flex; gap: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.02); }
+    .log-time { color: #4b5563; min-width: 60px; }
+    .log-source { color: #3b82f6; min-width: 90px; font-weight: 500; }
+    .log-msg { color: #9ca3af; }
+    .log-msg.success { color: #10b981; }
+
+    /* Metrics panel */
+    .metrics-panel { width: 200px; border-left: 1px solid rgba(255,255,255,0.03); padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .metric { }
+    .metric-label { font-size: 10px; color: #4b5563; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-value { font-size: 22px; font-weight: 700; font-family: 'SF Mono', Monaco, monospace; }
+    .metric-value.tokens { color: #3b82f6; }
+    .metric-value.time { color: #10b981; }
+    .metric-value.cost { color: #f59e0b; }
+
+    /* Properties Panel */
+    .properties { width: 320px; background: linear-gradient(180deg, #12121f 0%, #0d0d18 100%); border-left: 1px solid rgba(59, 130, 246, 0.1); display: flex; flex-direction: column; }
+    .properties-header { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .properties-header h3 { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .properties-header h3 .icon { width: 24px; height: 24px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+    .properties-content { flex: 1; overflow-y: auto; padding: 16px; }
+
+    .prop-group { margin-bottom: 18px; }
+    .prop-label { font-size: 10px; color: #4b5563; margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+    .prop-input { width: 100%; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 8px; padding: 10px 12px; color: #eee; font-size: 12px; transition: all 0.2s; }
+    .prop-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+
+    /* Temperature slider */
+    .temp-slider { margin-top: 8px; }
+    .temp-slider input[type="range"] { width: 100%; height: 6px; -webkit-appearance: none; background: linear-gradient(90deg, #3b82f6 0%, #f59e0b 100%); border-radius: 3px; }
+    .temp-slider input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #fff; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .temp-labels { display: flex; justify-content: space-between; font-size: 9px; color: #4b5563; margin-top: 6px; }
+    .temp-value { text-align: center; font-size: 12px; color: #f59e0b; font-weight: 600; margin-top: 4px; }
+
+    /* Expression builder */
+    .expression-builder { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 8px; padding: 10px; }
+    .expression-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .expression-chip { background: rgba(139, 92, 246, 0.2); padding: 4px 10px; border-radius: 5px; font-size: 10px; cursor: pointer; border: 1px solid rgba(139, 92, 246, 0.3); transition: all 0.2s; }
+    .expression-chip:hover { background: rgba(139, 92, 246, 0.3); }
+    .expression-chip.var { background: rgba(139, 92, 246, 0.3); color: #a78bfa; }
+    .expression-chip.op { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .expression-input { background: rgba(0,0,0,0.2); border: none; color: #a78bfa; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; width: 100%; padding: 6px 0; }
+    .expression-input:focus { outline: none; }
+
+    /* Toolbar */
+    .toolbar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(18, 18, 31, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 14px; padding: 10px 14px; display: flex; gap: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .toolbar button { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.15); color: #eee; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 8px; transition: all 0.2s; font-weight: 500; }
+    .toolbar button:hover { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.3); }
+    .toolbar button svg { width: 14px; height: 14px; }
+    .toolbar button.primary { background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+    .toolbar button.primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); }
+    .toolbar button.danger { background: linear-gradient(135deg, #ef4444, #dc2626); border: none; }
+    .toolbar .divider { width: 1px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+
+    /* Round indicator */
+    .round-badge { position: absolute; top: 20px; right: 20px; background: linear-gradient(135deg, #10b981, #059669); padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4); }
+    .round-badge svg { width: 14px; height: 14px; }
+
+    /* Minimap */
+    .minimap { position: absolute; bottom: 80px; right: 20px; width: 160px; height: 100px; background: rgba(12, 12, 20, 0.9); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; overflow: hidden; backdrop-filter: blur(10px); }
+    .minimap-nodes { position: absolute; inset: 8px; }
+    .minimap-node { position: absolute; background: rgba(59, 130, 246, 0.5); border-radius: 2px; }
+    .minimap-viewport { position: absolute; border: 2px solid #3b82f6; background: rgba(59,130,246,0.1); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Top Bar -->
+    <div class="topbar">
+      <span class="topbar-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Research → Code → Review Pipeline
+      </span>
+      <div class="topbar-status">
+        <div class="status-dot"></div>
+        Auto-saved 2s ago
+      </div>
+      <div class="checkpoint-indicator">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+        Checkpoint Active
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Export
+        </button>
+        <button class="topbar-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Templates
+        </button>
+        <button class="topbar-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          Settings
+        </button>
+      </div>
+    </div>
+
+    <div class="main">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-section">
+          <h3>Agent Types</h3>
+          <div class="node-type" draggable="true">
+            <div class="node-icon" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);">R</div>
+            <div class="node-type-info">
+              <div class="node-type-name">Researcher</div>
+              <div class="node-type-desc">Web search, analysis</div>
+            </div>
+          </div>
+          <div class="node-type" draggable="true">
+            <div class="node-icon" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">C</div>
+            <div class="node-type-info">
+              <div class="node-type-name">Coder</div>
+              <div class="node-type-desc">Code generation</div>
+            </div>
+          </div>
+          <div class="node-type" draggable="true">
+            <div class="node-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);">V</div>
+            <div class="node-type-info">
+              <div class="node-type-name">Reviewer</div>
+              <div class="node-type-desc">Quality check</div>
+            </div>
+          </div>
+          <div class="node-type" draggable="true">
+            <div class="node-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);">O</div>
+            <div class="node-type-info">
+              <div class="node-type-name">Orchestrator</div>
+              <div class="node-type-desc">Coordinate agents</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="storage-panel">
+          <h3 style="font-size: 10px; color: #4b5563; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600;">Tiered Storage</h3>
+          <div class="storage-tier">
+            <div class="storage-header">
+              <span class="label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Memory
+              </span>
+              <span class="value">2.4 MB</span>
+            </div>
+            <div class="storage-bar"><div class="storage-fill" style="width: 35%;"></div></div>
+          </div>
+
+          <div class="storage-tier">
+            <div class="storage-header">
+              <span class="label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                IndexedDB
+              </span>
+              <span class="value">18.2 MB</span>
+            </div>
+            <div class="storage-bar"><div class="storage-fill" style="width: 65%;"></div></div>
+          </div>
+
+          <div class="storage-tier">
+            <div class="storage-header">
+              <span class="label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Session
+              </span>
+              <span class="value">0.8 MB</span>
+            </div>
+            <div class="storage-bar"><div class="storage-fill" style="width: 12%;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Canvas Container -->
+      <div class="canvas-container">
+        <div class="canvas" id="canvas">
+          <div class="round-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Round 4 - Production
+          </div>
+
+          <!-- Researcher Node -->
+          <div class="node success" style="left: 60px; top: 100px;">
+            <div class="checkpoint-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Saved
+            </div>
+            <div class="handle handle-right"></div>
+            <div class="node-header">
+              <div class="node-icon" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">R</div>
+              <span class="node-title">Researcher</span>
+              <div class="node-status success">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                Done
+              </div>
+            </div>
+            <div class="node-body">
+              <div class="node-config">
+                <span class="config-badge">claude-3-opus</span>
+                <span class="config-badge">T: 0.7</span>
+              </div>
+              <div style="font-size: 10px; color: #10b981;">Output: 2,847 tokens</div>
+            </div>
+          </div>
+
+          <!-- Coder Node - Running -->
+          <div class="node running selected" style="left: 340px; top: 60px;">
+            <div class="handle handle-left"></div>
+            <div class="handle handle-right"></div>
+            <div class="node-header">
+              <div class="node-icon" style="background: linear-gradient(135deg, #10b981, #059669);">C</div>
+              <span class="node-title">Coder</span>
+              <div class="node-status running">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8"><circle cx="12" cy="12" r="4"/></svg>
+                Streaming
+              </div>
+            </div>
+            <div class="node-body">
+              <div class="node-config">
+                <span class="config-badge">gpt-4</span>
+                <span class="config-badge">T: 0.2</span>
+              </div>
+              <div class="stream-indicator">
+                <span>Generating...</span>
+                <div class="stream-bar">
+                  <div class="stream-progress"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reviewer Node - Waiting -->
+          <div class="node" style="left: 340px; top: 220px;">
+            <div class="handle handle-left"></div>
+            <div class="handle handle-right"></div>
+            <div class="node-header">
+              <div class="node-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">V</div>
+              <span class="node-title">Reviewer</span>
+              <div class="node-status" style="color: #6b7280;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><circle cx="12" cy="12" r="10"/></svg>
+                Waiting
+              </div>
+            </div>
+            <div class="node-body">
+              <div class="node-config">
+                <span class="config-badge">claude-3-opus</span>
+                <span class="config-badge">T: 0.5</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Output Node -->
+          <div class="node" style="left: 620px; top: 140px;">
+            <div class="handle handle-left"></div>
+            <div class="node-header">
+              <div class="node-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              </div>
+              <span class="node-title">Output</span>
+              <div class="node-status" style="color: #6b7280;">Pending</div>
+            </div>
+            <div class="node-body">
+              <div style="font-size: 10px; color: #6b7280;">Merge results from all agents</div>
+            </div>
+          </div>
+
+          <!-- SVG Connections -->
+          <svg class="connection" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+            <defs>
+              <linearGradient id="connGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+              </linearGradient>
+            </defs>
+            <path d="M 280 145 C 310 145, 310 105, 340 105" class="animated" />
+            <path d="M 280 145 C 310 145, 310 265, 340 265" />
+            <path d="M 560 105 C 590 105, 590 185, 620 185" class="animated" />
+            <path d="M 560 265 C 590 265, 590 185, 620 185" />
+          </svg>
+
+          <!-- Minimap -->
+          <div class="minimap">
+            <div class="minimap-nodes">
+              <div class="minimap-node" style="left: 10%; top: 25%; width: 20px; height: 12px; background: rgba(16, 185, 129, 0.6);"></div>
+              <div class="minimap-node" style="left: 40%; top: 15%; width: 20px; height: 12px; background: rgba(59, 130, 246, 0.6);"></div>
+              <div class="minimap-node" style="left: 40%; top: 55%; width: 20px; height: 12px; background: rgba(245, 158, 11, 0.4);"></div>
+              <div class="minimap-node" style="left: 70%; top: 35%; width: 20px; height: 12px; background: rgba(139, 92, 246, 0.4);"></div>
+            </div>
+            <div class="minimap-viewport" style="left: 5%; top: 10%; width: 45%; height: 60%;"></div>
+          </div>
+
+          <!-- Toolbar -->
+          <div class="toolbar">
+            <button>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+              Save
+            </button>
+            <button>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              Load
+            </button>
+            <div class="divider"></div>
+            <button>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              Undo
+            </button>
+            <button>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+              Redo
+            </button>
+            <div class="divider"></div>
+            <button class="danger">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+              Stop
+            </button>
+            <button class="primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+              Resume from Checkpoint
+            </button>
+          </div>
+        </div>
+
+        <!-- Execution Panel -->
+        <div class="execution-panel">
+          <div class="logs-panel">
+            <div class="logs-header">
+              <h4>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                Execution Logs
+              </h4>
+              <div class="logs-tabs">
+                <button class="logs-tab active">All</button>
+                <button class="logs-tab">Errors</button>
+                <button class="logs-tab">Streams</button>
+              </div>
+            </div>
+            <div class="logs-content">
+              <div class="log-line">
+                <span class="log-time">10:42:01</span>
+                <span class="log-source">[Researcher]</span>
+                <span class="log-msg success">✓ Completed research phase</span>
+              </div>
+              <div class="log-line">
+                <span class="log-time">10:42:01</span>
+                <span class="log-source">[System]</span>
+                <span class="log-msg">Checkpoint saved to IndexedDB</span>
+              </div>
+              <div class="log-line">
+                <span class="log-time">10:42:02</span>
+                <span class="log-source">[Coder]</span>
+                <span class="log-msg">Starting code generation...</span>
+              </div>
+              <div class="log-line">
+                <span class="log-time">10:42:03</span>
+                <span class="log-source">[Coder]</span>
+                <span class="log-msg">Streaming response: 847 tokens received</span>
+              </div>
+              <div class="log-line">
+                <span class="log-time">10:42:05</span>
+                <span class="log-source">[Stream]</span>
+                <span class="log-msg">Auto-checkpoint triggered (30s interval)</span>
+              </div>
+            </div>
+          </div>
+          <div class="metrics-panel">
+            <div class="metric">
+              <div class="metric-label">Total Tokens</div>
+              <div class="metric-value tokens">4,291</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Elapsed Time</div>
+              <div class="metric-value time">1m 24s</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Est. Cost</div>
+              <div class="metric-value cost">$0.12</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Properties Panel -->
+      <div class="properties">
+        <div class="properties-header">
+          <h3>
+            <span class="icon">C</span>
+            Coder Properties
+          </h3>
+        </div>
+        <div class="properties-content">
+          <div class="prop-group">
+            <label class="prop-label">Agent Name</label>
+            <input type="text" class="prop-input" value="Coder">
+          </div>
+
+          <div class="prop-group">
+            <label class="prop-label">Model</label>
+            <select class="prop-input">
+              <option selected>gpt-4</option>
+              <option>gpt-4-turbo</option>
+              <option>claude-3-opus</option>
+              <option>claude-3-sonnet</option>
+            </select>
+          </div>
+
+          <div class="prop-group">
+            <label class="prop-label">Temperature</label>
+            <div class="temp-slider">
+              <input type="range" value="20" min="0" max="100">
+              <div class="temp-value">0.2</div>
+              <div class="temp-labels">
+                <span>Precise</span>
+                <span>Creative</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="prop-group">
+            <label class="prop-label">Input Expression</label>
+            <div class="expression-builder">
+              <div class="expression-chips">
+                <span class="expression-chip var">$researcher.output</span>
+                <span class="expression-chip op">|</span>
+                <span class="expression-chip">json.parse()</span>
+              </div>
+              <input type="text" class="expression-input" value="$researcher.output | json.code_blocks" placeholder="Expression...">
+            </div>
+          </div>
+
+          <div class="prop-group">
+            <label class="prop-label">System Prompt</label>
+            <textarea class="prop-input" rows="4" style="resize: vertical; font-family: inherit;">You are an expert programmer. Based on the research provided, write clean, well-documented code.</textarea>
+          </div>
+
+          <div class="prop-group">
+            <label class="prop-label">Timeout (seconds)</label>
+            <input type="number" class="prop-input" value="120">
+          </div>
+
+          <div class="prop-group">
+            <label class="prop-label">Checkpoint Policy</label>
+            <select class="prop-input">
+              <option selected>Auto (every 30s)</option>
+              <option>On completion only</option>
+              <option>Disabled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

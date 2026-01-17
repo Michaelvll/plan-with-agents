@@ -1,0 +1,198 @@
+==========================================
+Debate System Fix and Test
+==========================================
+
+
+==========================================
+Iteration 1/10
+Task: Design a REST API for a todo list application with user authentication
+==========================================
+⚠ PARTIAL: Debate completed but no consensus
+
+==========================================
+Iteration 2/10
+Task: Design a simple caching layer with TTL support
+==========================================
+✓ PASS: Consensus reached
+
+==========================================
+Iteration 3/10
+Task: Design a rate limiting system using token bucket algorithm
+==========================================
+✗ FAIL: Debate timed out or errored (exit code: 124)
+  Last 20 lines of log:
+    🔄 Active refinement - exploring alternatives
+  ──────────────────────────────────────────────────────────────────────
+  
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🔵 Agent A (Architect): Designing...
+     → Reviewing and improving design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ✓ Done (125s, 1103 lines)
+     Signal: PROPOSING_FINAL - believes design is optimal
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🟣 Agent B (Reviewer): Reviewing...
+     → Analyzing and improving the design
+  
+  ⚠ Received SIGTERM! Saving session...
+  
+  ⚠ Received SIGTERM! Saving session...
+  ✓ Session saved to debate_output/session_20260117_084915
+  Resume with: debate --resume debate_output/session_20260117_084915
+
+==========================================
+Iteration 4/10
+Task: Design a file upload service with validation and storage
+==========================================
+⚠ PARTIAL: Debate completed but no consensus
+
+==========================================
+Iteration 5/10
+Task: Design a webhook delivery system with retries
+==========================================
+✗ FAIL: Debate timed out or errored (exit code: 124)
+  Last 20 lines of log:
+    ⏱️  Duration: 3m 39s (avg: 219s/round)
+    📈 Similarity: [███░░░░░░░] 30%
+    ⏳ Est. remaining: 3m 39s (1 round)
+  
+    Architect: 🔄 ITERATING
+    Reviewer:  🔄 ITERATING
+  
+    🔄 Active refinement - exploring alternatives
+  ──────────────────────────────────────────────────────────────────────
+  
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🔵 Agent A (Architect): Designing...
+     → Reviewing and improving design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ⚠ Request timed out after 186s. Retrying in 5s...
+  
+  ⚠ Received SIGTERM! Saving session...
+  ✓ Session saved to debate_output/session_20260117_090458
+  Resume with: debate --resume debate_output/session_20260117_090458
+
+==========================================
+Iteration 6/10
+Task: Design a notification service with email and push notifications
+==========================================
+✗ FAIL: Debate timed out or errored (exit code: 124)
+  Last 20 lines of log:
+    ⏱️  Duration: 2m 31s (avg: 151s/round)
+    📈 Similarity: [███░░░░░░░] 37%
+    ⏳ Est. remaining: 2m 31s (1 round)
+  
+    Architect: 🔄 ITERATING
+    Reviewer:  🔄 ITERATING
+  
+    🔄 Active refinement - exploring alternatives
+  ──────────────────────────────────────────────────────────────────────
+  
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🔵 Agent A (Architect): Designing...
+     → Reviewing and improving design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ⚠ Request timed out after 185s. Retrying in 5s...
+  
+  ⚠ Received SIGTERM! Saving session...
+  ✓ Session saved to debate_output/session_20260117_091259
+  Resume with: debate --resume debate_output/session_20260117_091259
+
+==========================================
+Iteration 7/10
+Task: Design a task queue system with priority support
+==========================================
+⚠ PARTIAL: Debate completed but no consensus
+
+==========================================
+Iteration 8/10
+Task: Design a user profile management API
+==========================================
+✗ FAIL: Debate timed out or errored (exit code: 124)
+  Last 20 lines of log:
+    Reviewer:  🔄 ITERATING
+  
+    🔄 Active refinement - exploring alternatives
+  ──────────────────────────────────────────────────────────────────────
+  
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🔵 Agent A (Architect): Designing...
+     → Reviewing and improving design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ✓ Done (173s, 1027 lines)
+     Signal: ITERATING - design still evolving
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🟣 Agent B (Reviewer): Reviewing...
+     → Analyzing and improving the design
+  
+  ⚠ Received SIGTERM! Saving session...
+  ✓ Session saved to debate_output/session_20260117_092727
+  Resume with: debate --resume debate_output/session_20260117_092727
+
+==========================================
+Iteration 9/10
+Task: Design a blog API with posts, comments, and tags
+==========================================
+✗ FAIL: Debate timed out or errored (exit code: 124)
+  Last 20 lines of log:
+    🔄 Active refinement - exploring alternatives
+  ──────────────────────────────────────────────────────────────────────
+  
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🔵 Agent A (Architect): Designing...
+     → Reviewing and improving design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ✓ Done (114s, 614 lines)
+     Signal: ITERATING - design still evolving
+  
+  [██████████░░░░░░░░░░] Round 2/2 (50%)
+  🟣 Agent B (Reviewer): Reviewing...
+     → Analyzing and improving the design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ⚠ Request timed out after 219s. Retrying in 5s...
+  
+  ⚠ Received SIGTERM! Saving session...
+  ✓ Session saved to debate_output/session_20260117_093528
+  Resume with: debate --resume debate_output/session_20260117_093528
+
+==========================================
+Iteration 10/10
+Task: Design a shopping cart API with inventory management
+==========================================
+✗ FAIL: Debate timed out or errored (exit code: 124)
+  Last 20 lines of log:
+  Starting debate (max 2 rounds)...
+  Session: debate_output/session_20260117_094328
+  
+  
+  [░░░░░░░░░░░░░░░░░░░░] Round 1/2 (0%)
+  🔵 Agent A (Architect): Designing...
+     → Creating initial design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ✓ Done (59s, 492 lines)
+     Signal: ITERATING - design still evolving
+  
+  [░░░░░░░░░░░░░░░░░░░░] Round 1/2 (0%)
+  🟣 Agent B (Reviewer): Reviewing...
+     → Analyzing and improving the design
+     ⏱️  0s | 1 lines | Section: Starting
+  [1A[J   ⚠ Request timed out after 212s. Retrying in 5s...
+  
+  ⚠ Received SIGTERM! Saving session...
+  ✓ Session saved to debate_output/session_20260117_094328
+  Resume with: debate --resume debate_output/session_20260117_094328
+
+==========================================
+Final Results
+==========================================
+Successful: 4/10
+Failed: 6/10
+
+✗ Too many failures (6/10)

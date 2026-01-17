@@ -1,0 +1,12 @@
+{
+  "initial_prompt": "Design a rate limiting system using token bucket algorithm",
+  "rounds": [],
+  "final_design": "",
+  "status": "debating",
+  "started_at": "2026-01-17T08:22:14.944065",
+  "ended_at": "",
+  "max_rounds": 3,
+  "working_dir": ".",
+  "current_round": 0,
+  "round_times": []
+}
