@@ -1,87 +1,93 @@
 # Plan with Agents
 
-A Claude Code plugin that uses multi-turn planning to create high-quality implementation designs through iterative agent collaboration.
+Two AI agents collaborate to converge on optimal designs before implementation begins.
+
+## Why This Matters
+
+> "Most sessions start in Plan mode... I will use Plan mode, and go back and forth with Claude until I like its plan. From there, I switch into auto-accept edits mode and Claude can usually 1-shot it. **A good plan is really important!**"
+> — [Boris Cherny](https://x.com/bcherny/status/2007179845336527000), Claude Code creator
+
+But why spend your time going back and forth with Claude on the plan? **Let two agents collaborate instead.**
+
+This plugin automates that iterative refinement — two Claude instances critique and improve each other's designs until they converge on an optimal plan. You get a thoroughly vetted design without the manual back-and-forth.
+
+**The result:** Better designs, fewer implementation issues, and you can grab a coffee while the agents collaborate.
+
+## The GAN-Inspired Approach
+
+This system draws inspiration from **Generative Adversarial Networks (GANs)** — the breakthrough ML technique where two neural networks improve each other through competition:
+
+| GAN Training | Agent Planning |
+|--------------|----------------|
+| Generator creates images | Architect creates designs |
+| Discriminator critiques | Reviewer analyzes and improves |
+| Iterative refinement | Back-and-forth until convergence |
+| Better outputs over time | Better designs through collaboration |
+
+Just as GANs produce remarkable results by having two components push each other to improve, this system produces better software designs by having two Claude instances challenge and refine each other's thinking.
 
 ## How It Works
 
-Two AI agents iteratively refine a design until they reach consensus:
-
-- **Architect**: Creates and improves the design
-- **Reviewer**: Critically analyzes and proposes enhancements
-
-Each agent produces complete, improved designs. The process continues until both agents agree the design is optimal.
-
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Round 1                                                    │
-│  ┌─────────────┐         ┌─────────────┐                   │
-│  │  Architect  │────────▶│  Reviewer   │                   │
-│  │  (Design)   │         │  (Improve)  │                   │
-│  └─────────────┘         └─────────────┘                   │
-│         │                       │                           │
-│         ▼                       ▼                           │
-│  Round 2, 3, ... until consensus                           │
-│         │                       │                           │
-│         └───────────┬───────────┘                          │
-│                     ▼                                       │
-│            ┌───────────────┐                               │
-│            │ Final Design  │                               │
-│            └───────────────┘                               │
-└─────────────────────────────────────────────────────────────┘
+                        ┌─────────────────────────────────────┐
+                        │           Your Task                 │
+                        │  "Design a caching layer for..."    │
+                        └──────────────────┬──────────────────┘
+                                           │
+                                           ▼
+        ╔═══════════════════════════════════════════════════════════════╗
+        ║                     PLANNING LOOP                             ║
+        ╠═══════════════════════════════════════════════════════════════╣
+        ║                                                               ║
+        ║   ┌──────────────────┐         ┌──────────────────┐          ║
+        ║   │   🔵 ARCHITECT   │         │   🟣 REVIEWER    │          ║
+        ║   │                  │         │                  │          ║
+        ║   │  Creates design  │ ──────► │  Reviews design  │          ║
+        ║   │  Incorporates    │         │  Finds gaps      │          ║
+        ║   │  feedback        │ ◄────── │  Improves design │          ║
+        ║   │                  │         │                  │          ║
+        ║   └──────────────────┘         └──────────────────┘          ║
+        ║            │                           │                      ║
+        ║            └───────────┬───────────────┘                      ║
+        ║                        │                                      ║
+        ║              ┌─────────▼─────────┐                            ║
+        ║              │  Both agree?      │                            ║
+        ║              │  PROPOSING_FINAL  │──── No ────┐               ║
+        ║              │  ACCEPTING_FINAL  │            │               ║
+        ║              └─────────┬─────────┘            │               ║
+        ║                   Yes  │                      │               ║
+        ╚════════════════════════╪══════════════════════╪═══════════════╝
+                                 │                      │
+                                 ▼                      └──► Next Round
+                   ┌─────────────────────────┐
+                   │   ✅ CONSENSUS REACHED   │
+                   │                         │
+                   │   final_design.md       │
+                   │   Ready to implement    │
+                   └─────────────────────────┘
 ```
 
-## Why This Works: Real Example
+Each agent doesn't just give feedback — they produce a **complete improved design** based on the other's version. This continues until neither agent can improve the design further.
+
+## Real Example: Round 1 vs Round 4
 
 **Task**: "Design a visual AI agent workflow builder"
 
-| Round | What Changed |
-|-------|--------------|
-| 1 | Basic React Flow canvas, simple Zustand state, Web Workers |
-| 2 | Added execution orchestration layer, streaming support |
-| 3 | Checkpoint manager, tiered storage, expression system |
-| 4 | **Stream resurrection** - survives page refresh! |
+After 4 rounds (26 minutes), watch a basic design evolve into production-ready architecture:
 
-**Time**: 26 minutes → **Result**: Production-ready 2,600 line design
-
-### Visual Comparison: Round 1 vs Round 4
-
-**Round 1** - Basic workflow builder with simple nodes and properties:
+**Round 1** - Basic workflow builder:
 
 ![Round 1 - Basic](examples/agent-workflow-builder/round1-screenshot.png)
 
-**Round 4** - Production UI with tiered storage, execution logs, checkpoints, and expression system:
+**Round 4** - Production UI with checkpoints, tiered storage, and stream resurrection:
 
 ![Round 4 - Production](examples/agent-workflow-builder/round4-screenshot.png)
 
-<details>
-<summary>Architecture Evolution (Text)</summary>
-
-**Round 1** - Basic setup:
-```
-React App → Canvas → Zustand → Web Workers → IndexedDB
-```
-
-**Round 4** - Production architecture:
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Canvas (React Flow) │ Properties Panel │ Toolbar & Palette    │
-├─────────────────────────────────────────────────────────────────┤
-│           State Management (Zustand + Immer + persistence)      │
-├─────────────────────────────────────────────────────────────────┤
-│  Adaptive Executor │ Resilient Stream Manager │ Checkpoint Mgr  │
-├─────────────────────────────────────────────────────────────────┤
-│  Composable Expressions │ Tiered Storage │ Append-Only Log     │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-</details>
-
-**What the iteration caught**:
-- ❌ Page refresh loses all execution state
-- ✅ Checkpoint-based stream resurrection (auto-recovers after refresh)
-- ✅ Three-tier storage (Memory → IndexedDB → SessionStorage)
-- ✅ Composable expression system for complex data flows
-- ✅ Shared Worker pool with resource quotas
+**What the iteration caught:**
+- ❌ Page refresh loses all execution state → ✅ Checkpoint-based stream resurrection
+- ❌ Single storage layer → ✅ Three-tier storage (Memory → IndexedDB → SessionStorage)
+- ❌ Basic properties → ✅ Composable expression system for data flows
+- ❌ No observability → ✅ Execution logs, metrics, cost tracking
 
 ## When to Use This
 
@@ -96,45 +102,26 @@ React App → Canvas → Zustand → Web Workers → IndexedDB
 - Trivial changes (typos, formatting)
 - Well-established patterns
 
-## Installation
+## Quick Start
 
-### Option 1: Add as Marketplace (Recommended)
+### Installation
 
 ```bash
-# Add the marketplace
+# In Claude Code
 /plugin marketplace add michaelvll/plan-with-agents
-
-# Install the plugin
 /plugin install plan-with-agents
 ```
 
-### Option 2: Direct Clone
-
+Or clone directly:
 ```bash
 git clone https://github.com/michaelvll/plan-with-agents ~/.claude/plugins/plan-with-agents
 ```
 
-Then restart Claude Code.
-
-## Usage
-
-### Basic Usage
+### Usage
 
 ```bash
-/plan-with-agents "Design API caching layer"
-```
-
-Or simply run without a task to be prompted:
-
-```bash
-/plan-with-agents
-```
-
-### Examples
-
-```bash
-# Standard planning (most cases)
-/plan-with-agents "Design REST API for user profiles with rate limiting"
+# Basic usage
+/plan-with-agents "Design a REST API for a task management system"
 
 # Quick consensus for simpler tasks
 /plan-with-agents --max-rounds 5 "Add rate limiting middleware"
@@ -156,95 +143,66 @@ Or simply run without a task to be prompted:
 | `--resume latest` | Resume interrupted session | - |
 | `--implement` | Auto-implement after consensus | - |
 | `--verbose` | Show full agent outputs | - |
-| `--no-color` | Disable colored output | - |
-| `--self-test` | Run diagnostics | - |
 | `--list` | List available sessions | - |
 
 ## Configuration
 
-### Config File
-
-Create `.plan.json` in your project root or home directory:
+Create `.plan.json` in your project root:
 
 ```json
 {
   "maxRounds": 8,
   "model": "sonnet",
-  "timeout": 300,
-  "verbose": false
+  "timeout": 300
 }
 ```
 
-### Environment Variables
-
-```bash
-export PLAN_MAX_ROUNDS=8
-export PLAN_MODEL=sonnet
-export PLAN_TIMEOUT=300
-export NO_COLOR=1  # Disable colors
-```
-
-### Precedence
-
-Configuration is resolved in this order (later overrides earlier):
-1. Defaults
-2. Config file (`.plan.json`)
-3. Environment variables
-4. CLI flags
+Or use environment variables: `PLAN_MAX_ROUNDS`, `PLAN_MODEL`, `PLAN_TIMEOUT`
 
 ## Output
 
-Results are saved to `plan_output/session_*/`:
+Each session saves to `plan_output/session_*/`:
 
 ```
 plan_output/session_20260116_123456/
-├── final_design.md       # The agreed-upon design (read this first)
+├── final_design.md         # The agreed-upon design
 ├── planning_history.md     # Full conversation transcript
-├── session.json          # Metadata
-└── session_state.json    # State for resumption
+├── improvements_summary.md # What changed from Round 1
+└── session.json            # Metadata for resumption
 ```
 
-## Examples Directory
+## Using the Final Design
 
-See `examples/` for curated planning sessions:
+Once planning reaches consensus, implement with Claude Code:
 
-- `api-design/` - REST API design with rate limiting
-- `auth-flow/` - JWT authentication with refresh tokens
-- `database-schema/` - E-commerce schema with indexing
+```bash
+# Pass design as argument
+claude "Implement this design: $(cat plan_output/session_*/final_design.md)"
 
-Each example includes:
-- `task.txt` - Original task description
-- `final_design.md` - Consensus design
-- `NOTES.md` - Curator annotations on key decisions
+# Or pipe interactively
+cat plan_output/session_*/final_design.md | claude
+
+# Or auto-implement after consensus
+/plan-with-agents --implement "Design a REST API for user management"
+```
+
+## Tips for Good Prompts
+
+1. **Be specific**: "Design a REST API for user authentication with JWT tokens" > "Design an API"
+2. **Include constraints**: "...that handles 10k requests/second"
+3. **Mention technologies**: "...using Redis for caching"
+4. **Specify scope**: "Focus on the data model and API endpoints"
 
 ## Troubleshooting
 
-### Run Self-Test
-
+**Run self-test:**
 ```bash
 ./plan --self-test
 ```
 
-This checks:
-- Claude CLI installation
-- Output directory permissions
-- Disk space
-- Python version
-
-### Interrupted Sessions
-
-Sessions are automatically saved when interrupted (Ctrl+C). Resume with:
-
-```bash
-/plan-with-agents --resume latest
-```
-
-### Low Similarity Scores
-
-If agents show low similarity (< 30%) after several rounds:
-- Task may be too vague - add specific constraints
-- Task may be too complex - break into smaller pieces
-- Agents may be exploring significantly different approaches
+**Low similarity scores?** If agents show < 30% similarity after several rounds:
+- Task may be too vague — add specific constraints
+- Task may be too complex — break into smaller pieces
 
 ## Requirements
 
@@ -257,4 +215,4 @@ MIT
 
 ## Contributing
 
-Contributions welcome! Please see the [CHANGELOG](CHANGELOG.md) for recent changes.
+Contributions welcome! See [CHANGELOG](CHANGELOG.md) for recent changes.
