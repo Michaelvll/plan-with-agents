@@ -36,7 +36,8 @@
   <rect x="120" y="160" width="200" height="120" rx="10" fill="url(#architectGrad)" filter="url(#shadow)"/>
   <circle cx="160" cy="195" r="16" fill="white" fill-opacity="0.2"/>
   <text x="160" y="200" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16">🔵</text>
-  <text x="230" y="195" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">ARCHITECT</text>
+  <text x="230" y="188" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">ARCHITECT</text>
+  <text x="230" y="203" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">(Agent A)</text>
   <text x="220" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Creates design</text>
   <text x="220" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Incorporates feedback</text>
   <text x="220" y="259" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">Signals PROPOSING_FINAL</text>
@@ -45,7 +46,8 @@
   <rect x="480" y="160" width="200" height="120" rx="10" fill="url(#reviewerGrad)" filter="url(#shadow)"/>
   <circle cx="520" cy="195" r="16" fill="white" fill-opacity="0.2"/>
   <text x="520" y="200" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16">🟣</text>
-  <text x="590" y="195" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">REVIEWER</text>
+  <text x="590" y="188" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">REVIEWER</text>
+  <text x="590" y="203" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">(Agent B)</text>
   <text x="580" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Reviews design</text>
   <text x="580" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Finds gaps and improves</text>
   <text x="580" y="259" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">Signals ACCEPTING_FINAL</text>
