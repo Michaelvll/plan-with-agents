@@ -47,7 +47,7 @@
   <text x="520" y="200" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16">🟣</text>
   <text x="590" y="195" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">REVIEWER</text>
   <text x="580" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Reviews design</text>
-  <text x="580" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Finds gaps & improves</text>
+  <text x="580" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Finds gaps and improves</text>
   <text x="580" y="259" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">Signals ACCEPTING_FINAL</text>
 
   <!-- Arrows between agents -->
