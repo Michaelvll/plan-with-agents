@@ -29,7 +29,7 @@ Just as GANs produce remarkable results by having two components push each other
 ## How It Works
 
 <p align="center">
-  <img src="assets/planning-loop.svg" alt="Planning Loop Diagram" width="700">
+  <img src="https://raw.githubusercontent.com/michaelvll/plan-with-agents/main/assets/planning-loop.svg" alt="Planning Loop Diagram" width="700">
 </p>
 
 Each agent doesn't just give feedback — they produce a **complete improved design** based on the other's version. This continues until neither agent can improve the design further.
