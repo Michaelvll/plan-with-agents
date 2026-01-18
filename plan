@@ -1663,6 +1663,21 @@ If their design is already optimal and you can't improve it, signal ACCEPTING_FI
     # Save session files
     save_session(session, session_dir)
 
+    # Generate and display improvement summary
+    if len(session.rounds) >= 2:
+        summary = generate_improvement_summary(
+            session=session,
+            session_dir=session_dir,
+            working_dir=working_dir,
+            model=model
+        )
+        if summary:
+            print(f"\n{Colors.BOLD}═══════════════════════════════════════════════════════════════{Colors.NC}")
+            print(f"{Colors.BOLD}  📈 Design Improvements Summary{Colors.NC}")
+            print(f"{Colors.BOLD}═══════════════════════════════════════════════════════════════{Colors.NC}\n")
+            print(summary)
+            print(f"\n{Colors.BOLD}═══════════════════════════════════════════════════════════════{Colors.NC}")
+
     print(f"\n{Colors.BOLD}Planning complete!{Colors.NC}")
     print(f"Session saved to: {Colors.CYAN}{session_dir}{Colors.NC}")
 
@@ -1730,6 +1745,81 @@ def save_session(session: PlanningSession, session_dir: Path):
             'ended_at': session.ended_at,
             'final_design': session.final_design
         }, f, indent=2)
+
+
+def generate_improvement_summary(
+    session: PlanningSession,
+    session_dir: Path,
+    working_dir: str,
+    model: str = 'sonnet',
+    timeout: int = 120
+) -> Optional[str]:
+    """Generate a summary of improvements made through the planning process"""
+
+    if len(session.rounds) < 1:
+        return None
+
+    # Get round 1 design
+    round1 = session.rounds[0]
+    round1_design = ""
+    if round1.agent_a_response:
+        round1_design = extract_design_section(round1.agent_a_response.raw_response)
+
+    if not round1_design or not session.final_design:
+        return None
+
+    print(f"\n{Colors.CYAN}Generating improvement summary...{Colors.NC}")
+    sys.stdout.flush()
+
+    summary_prompt = f"""Compare the Round 1 design with the Final design and summarize the key improvements made through the iterative planning process.
+
+## Round 1 Design (Initial)
+{round1_design[:4000]}
+
+## Final Design (After {len(session.rounds)} rounds)
+{session.final_design[:4000]}
+
+## Instructions
+Write a concise summary (5-10 bullet points) highlighting:
+1. What was missing or weak in the initial design
+2. Key improvements and additions made
+3. Specific issues that were caught and fixed
+4. Why the final design is better
+
+Format as a markdown list with clear, specific points. Focus on concrete improvements, not generic statements.
+Start directly with the bullet points, no preamble."""
+
+    system_prompt = """You are a technical analyst summarizing the evolution of a software design.
+Be specific and concrete. Reference actual components, patterns, or decisions that changed.
+Keep each bullet point to 1-2 sentences."""
+
+    result = call_claude_with_retry(
+        system_prompt=system_prompt,
+        user_prompt=summary_prompt,
+        working_dir=working_dir,
+        timeout=timeout,
+        max_retries=1,
+        model=model
+    )
+
+    if isinstance(result, Failure):
+        print(f"   {Colors.YELLOW}Could not generate summary: {result.error.message}{Colors.NC}")
+        return None
+
+    summary = result.value.strip()
+
+    # Save summary to file
+    summary_file = session_dir / "improvements_summary.md"
+    with open(summary_file, 'w') as f:
+        f.write(f"# Design Improvements Summary\n\n")
+        f.write(f"**Task:** {session.initial_prompt}\n\n")
+        f.write(f"**Rounds:** {len(session.rounds)}\n\n")
+        f.write("---\n\n")
+        f.write("## Key Improvements\n\n")
+        f.write(summary)
+        f.write("\n")
+
+    return summary
 
 
 def run_implementation(final_design: str, original_task: str, working_dir: str):
