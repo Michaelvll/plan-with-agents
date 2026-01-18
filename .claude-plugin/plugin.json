@@ -3,7 +3,8 @@
   "description": "Multi-turn planning system for creating high-quality implementation designs. Two AI agents (Architect and Reviewer) collaborate through iterative refinement until consensus.",
   "version": "1.1.0",
   "author": {
-    "name": "Zongheng Wu"
+    "name": "Zhanghao Wu",
+    "email": "i@michaelvll.com"
   },
   "homepage": "https://github.com/michaelvll/plan-with-agents#readme",
   "repository": "https://github.com/michaelvll/plan-with-agents",

@@ -1,8 +1,8 @@
 {
   "name": "plan-with-agents",
   "owner": {
-    "name": "Zongheng Wu",
-    "email": "zongheng@berkeley.edu"
+    "name": "Zhanghao Wu",
+    "email": "i@michaelvll.com"
   },
   "metadata": {
     "description": "Multi-turn planning system for creating high-quality implementation designs through iterative agent collaboration"
