@@ -1,4 +1,4 @@
-# Plan with Debate
+# Plan with Agents
 
 A Claude Code plugin that uses multi-turn planning to create high-quality implementation designs through iterative agent collaboration.
 
