@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
+  <defs>
+    <linearGradient id="architectGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1D4ED8;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="reviewerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6D28D9;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="consensusGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="500" fill="#f8fafc"/>
+
+  <!-- Task Input Box -->
+  <rect x="280" y="20" width="240" height="50" rx="8" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="42" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#64748b">Your Task</text>
+  <text x="400" y="58" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#94a3b8">"Design a caching layer for..."</text>
+
+  <!-- Arrow from task to loop -->
+  <path d="M400 70 L400 100" stroke="#cbd5e1" stroke-width="2" fill="none" marker-end="url(#arrowGray)"/>
+
+  <!-- Planning Loop Container -->
+  <rect x="80" y="100" width="640" height="280" rx="12" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="125" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#334155">PLANNING LOOP</text>
+
+  <!-- Architect Box -->
+  <rect x="120" y="160" width="200" height="120" rx="10" fill="url(#architectGrad)" filter="url(#shadow)"/>
+  <circle cx="160" cy="195" r="16" fill="white" fill-opacity="0.2"/>
+  <text x="160" y="200" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16">🔵</text>
+  <text x="230" y="195" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">ARCHITECT</text>
+  <text x="220" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Creates design</text>
+  <text x="220" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Incorporates feedback</text>
+  <text x="220" y="259" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">Signals PROPOSING_FINAL</text>
+
+  <!-- Reviewer Box -->
+  <rect x="480" y="160" width="200" height="120" rx="10" fill="url(#reviewerGrad)" filter="url(#shadow)"/>
+  <circle cx="520" cy="195" r="16" fill="white" fill-opacity="0.2"/>
+  <text x="520" y="200" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16">🟣</text>
+  <text x="590" y="195" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" fill="white">REVIEWER</text>
+  <text x="580" y="225" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Reviews design</text>
+  <text x="580" y="242" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">Finds gaps & improves</text>
+  <text x="580" y="259" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="white" fill-opacity="0.7">Signals ACCEPTING_FINAL</text>
+
+  <!-- Arrows between agents -->
+  <defs>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#3B82F6"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#8B5CF6"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#cbd5e1"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#10B981"/>
+    </marker>
+  </defs>
+
+  <!-- Forward arrow (Architect to Reviewer) -->
+  <path d="M320 200 L470 200" stroke="#3B82F6" stroke-width="3" fill="none" marker-end="url(#arrowBlue)"/>
+
+  <!-- Back arrow (Reviewer to Architect) -->
+  <path d="M470 240 L320 240" stroke="#8B5CF6" stroke-width="3" fill="none" marker-end="url(#arrowPurple)"/>
+
+  <!-- Decision Diamond -->
+  <polygon points="400,300 450,340 400,380 350,340" fill="white" stroke="#e2e8f0" stroke-width="2" filter="url(#shadow)"/>
+  <text x="400" y="337" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#64748b">Both</text>
+  <text x="400" y="350" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#64748b">agree?</text>
+
+  <!-- Arrow from agents to decision -->
+  <path d="M400 280 L400 298" stroke="#cbd5e1" stroke-width="2" fill="none" marker-end="url(#arrowGray)"/>
+
+  <!-- No path (loop back) -->
+  <path d="M450 340 L520 340 L520 285 L480 285" stroke="#f87171" stroke-width="2" fill="none" stroke-dasharray="5,3" marker-end="url(#arrowGray)"/>
+  <text x="540" y="310" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#f87171">No</text>
+
+  <!-- Yes path to consensus -->
+  <path d="M400 380 L400 410" stroke="#10B981" stroke-width="2" fill="none" marker-end="url(#arrowGreen)"/>
+  <text x="420" y="398" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#10B981">Yes</text>
+
+  <!-- Consensus Box -->
+  <rect x="280" y="420" width="240" height="60" rx="10" fill="url(#consensusGrad)" filter="url(#shadow)"/>
+  <text x="320" y="448" font-family="system-ui, -apple-system, sans-serif" font-size="18">✅</text>
+  <text x="400" y="445" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="white">CONSENSUS REACHED</text>
+  <text x="400" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="white" fill-opacity="0.9">final_design.md ready to implement</text>
+</svg>
